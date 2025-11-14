@@ -1,0 +1,24 @@
+# --- FastAPI Core ---
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# --- Database ---
+sqlalchemy==2.0.31
+pymysql==1.1.1          # MySQL 드라이버
+
+# --- ORM Migration ---
+alembic==1.13.2          # SQLAlchemy 2.x와 완전 호환되는 버전
+
+# --- Validation / Pydantic ---
+pydantic==2.8.2
+pydantic-settings==2.3.3 # env 기반 설정 관리를 위해 필요
+
+# --- Environment Variables ---
+python-dotenv==1.0.1
+
+# --- Firebase Authentication / Messaging ---
+firebase-admin==6.5.0
+
+# --- Optional (보안/유틸) ---
+passlib[bcrypt]==1.7.4     # 비밀번호 해싱 필요시
+python-multipart==0.0.7     # 파일 업로드 필요 시
