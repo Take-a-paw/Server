@@ -7,7 +7,7 @@ class User(Base):
 
     user_id = Column(Integer, primary_key=True, autoincrement=True)
     firebase_uid = Column(String(128), unique=True, nullable=False)
-    sns_id = Column(String(128), unique=True, nullable=False)
+    sns_id = Column(String(128), unique=False, nullable=False)
     nickname = Column(String(50), nullable=False)
 
     email = Column(String(100))
