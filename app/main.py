@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from app.domains.auth.router.auth_router import router as auth_router
 from app.domains.pets.router.register_router import router as pet_register_router
+from app.domains.walk.router.recommendation_router import router as walk_recommendation_router
+from app.domains.record.router.walk_router import router as record_walk_router
 
 
 def create_app() -> FastAPI:
@@ -15,6 +17,12 @@ def create_app() -> FastAPI:
 
     # Pets Register API
     app.include_router(pet_register_router)
+
+    # Walk Recommendation/Domain API
+    app.include_router(walk_recommendation_router)
+
+    # Record Walk API
+    app.include_router(record_walk_router)
 
     @app.get("/")
     def root():
