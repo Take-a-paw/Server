@@ -35,7 +35,9 @@ class AuthService:
         decoded = verify_firebase_token(id_token)
         if decoded is None:
             return error_response(
-                401, "AUTH_401_4", "유효하지 않거나 만료된 Firebase ID Token입니다. 다시 로그인해주세요.", request.url.path
+                401, "AUTH_401_4", 
+                "유효하지 않거나 만료된 Firebase ID Token입니다. 다시 로그인해주세요.",
+                request.url.path
             )
 
         firebase_uid = decoded.get("uid")
@@ -44,15 +46,15 @@ class AuthService:
         picture = decoded.get("picture")
         provider = decoded.get("firebase", {}).get("sign_in_provider")
 
-        # ⭐ provider → sns_id 변환
-        sns_provider_map = {
-            "google.com": 1,
-            "apple.com": 2,
-            "oidc.kakao": 3,
-            "custom": 3,
-            "password": 4
+        # ⭐ provider → sns(enum) 변환
+        provider_map = {
+            "google.com": "google",
+            "apple.com": "apple",
+            "oidc.kakao": "kakao",
+            "custom": "kakao",
+            "password": "email"
         }
-        sns_id = sns_provider_map.get(provider, 0)
+        sns = provider_map.get(provider, "email")
 
         # 3) 필수 필드 확인
         if not firebase_uid:
@@ -60,15 +62,11 @@ class AuthService:
                 400, "AUTH_400_1", "Firebase UID를 토큰에서 찾을 수 없습니다.", request.url.path
             )
 
-        if not provider:
-            return error_response(
-                400, "AUTH_400_2", "Firebase 인증 제공자 정보를 확인할 수 없습니다.", request.url.path
-            )
-
         # 4) DB 접근
         repo = AuthRepository(db)
         user = repo.get_user_by_firebase_uid(firebase_uid)
 
+        # --- 기존 유저 로그인 ---
         if user:
             return {
                 "is_new_user": False,
@@ -79,18 +77,18 @@ class AuthService:
                     "email": user.email,
                     "phone": user.phone,
                     "profile_img_url": user.profile_img_url,
-                    "provider": provider
+                    "sns": user.sns
                 }
             }
 
-        # 5) 신규 회원가입
+        # --- 신규 회원가입 ---
         try:
             new_user = repo.create_user(
                 firebase_uid=firebase_uid,
                 nickname=nickname or f"user_{firebase_uid[:6]}",
                 email=email,
                 picture=picture,
-                sns_id=sns_id  # ⭐ 새로운 값 전달
+                sns=sns
             )
         except Exception as e:
             db.rollback()
@@ -101,7 +99,7 @@ class AuthService:
                 request.url.path
             )
 
-        # 6) 응답
+        # --- 신규 회원가입 응답 ---
         return {
             "is_new_user": True,
             "user": {
@@ -111,6 +109,6 @@ class AuthService:
                 "email": new_user.email,
                 "phone": new_user.phone,
                 "profile_img_url": new_user.profile_img_url,
-                "provider": provider
+                "sns": new_user.sns   
             }
         }

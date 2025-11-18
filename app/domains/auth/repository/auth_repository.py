@@ -13,16 +13,15 @@ class AuthRepository:
             .first()
         )
 
-    def create_user(self, firebase_uid, nickname, email, picture, sns_id):
+    def create_user(self, firebase_uid, nickname, email, profile_img_url, sns):
         user = User(
             firebase_uid=firebase_uid,
-            sns_id=sns_id,     # ⭐ 추가
+            sns=sns,                     # enum("google", "apple", "kakao", "email")
             nickname=nickname,
             email=email,
-            profile_img_url=picture
+            profile_img_url=profile_img_url
         )
         self.db.add(user)
         self.db.commit()
         self.db.refresh(user)
         return user
-
