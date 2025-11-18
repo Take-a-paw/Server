@@ -11,6 +11,7 @@ from app.core.error_handler import error_response
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.family_member import FamilyMember
+from app.models.notification import Notification, NotificationType
 from app.domains.walk.repository.session_repository import SessionRepository
 from app.schemas.walk.session_schema import WalkStartRequest, WalkTrackRequest, WalkEndRequest
 
@@ -160,17 +161,16 @@ class SessionService:
         # 7) 산책 세션 생성
         # ============================================
         try:
-            # 서버 기준 시작 시간
             start_time = datetime.utcnow()
-            
-            # 새로운 산책 세션 생성
+
+            # 산책 세션 생성
             walk = self.session_repo.create_walk(
                 pet_id=body.pet_id,
                 user_id=user.user_id,
                 start_time=start_time,
             )
-            
-            # GPS 좌표가 있으면 tracking point 생성
+
+            # 첫 위치 저장
             if has_lat and has_lng:
                 self.session_repo.create_tracking_point(
                     walk_id=walk.walk_id,
@@ -178,7 +178,8 @@ class SessionService:
                     longitude=body.start_lng,
                     timestamp=start_time,
                 )
-            
+
+            # 🔥 walk 생성은 반드시 성공해야 하므로 먼저 commit
             self.db.commit()
             self.db.refresh(walk)
 
@@ -190,6 +191,39 @@ class SessionService:
                 "산책을 시작하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
                 path
             )
+
+        # ============================================
+        # 7-1) 산책 시작 알림 생성 (별도 트랜잭션)
+        # ============================================
+        try:
+            family_members = (
+                self.db.query(FamilyMember)
+                .filter(FamilyMember.family_id == pet.family_id)
+                .all()
+            )
+
+            notifications = []
+            for member in family_members:
+                notifications.append(
+                    Notification(
+                        family_id=pet.family_id,
+                        target_user_id=member.user_id,
+                        type=NotificationType.ACTIVITY_START,
+                        title="산책 시작",
+                        message=f"{user.nickname}님이 {pet.name}와 산책을 시작했습니다.",
+                        related_pet_id=pet.pet_id,
+                        related_user_id=user.user_id,
+                    )
+                )
+
+            self.db.add_all(notifications)
+            self.db.commit()
+
+        except Exception as e:
+            # 알림 실패는 치명적이지 않음 → rollback 후 로그만 출력
+            print("NOTIFICATION_START_ERROR:", e)
+            self.db.rollback()
+
 
         # ============================================
         # 8) 응답 생성
@@ -590,10 +624,9 @@ class SessionService:
         # 7) 산책 종료 처리
         # ============================================
         try:
-            # 서버 기준 종료 시간
             end_time = datetime.utcnow()
-            
-            # 산책 종료
+
+            # 산책 종료 정보 업데이트
             updated_walk = self.session_repo.end_walk(
                 walk=walk,
                 end_time=end_time,
@@ -603,28 +636,31 @@ class SessionService:
                 last_lng=body.last_lng,
                 route_data=route_data_dict,
             )
-            
-            # activity_stats 업데이트 (distance_km와 duration_min이 있을 때만)
+
+            # activity_stats 업데이트
             activity_stat = None
-            if distance_km is not None and duration_min is not None and distance_km > 0 and duration_min > 0:
-                # 오늘 날짜 계산 (KST 기준)
+            if (
+                distance_km is not None 
+                and duration_min is not None 
+                and distance_km > 0 
+                and duration_min > 0
+            ):
                 kst = pytz.timezone('Asia/Seoul')
                 now_kst = datetime.now(kst)
                 stat_date = now_kst.date()
-                
-                # 활동 통계 조회 또는 생성
+
                 activity_stat = self.session_repo.get_or_create_activity_stat(
                     pet_id=walk.pet_id,
                     stat_date=stat_date,
                 )
-                
-                # 활동 통계 업데이트
+
                 self.session_repo.update_activity_stat(
                     stat=activity_stat,
                     distance_km=distance_km,
                     duration_min=duration_min,
                 )
-            
+
+            # 🔥 walk 종료는 반드시 성공해야 하므로 먼저 commit
             self.db.commit()
             self.db.refresh(updated_walk)
             if activity_stat:
@@ -638,6 +674,40 @@ class SessionService:
                 "산책을 종료하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
                 path
             )
+
+
+        # ============================================
+        # 7-2) 산책 종료 알림 생성 (별도 트랜잭션)
+        # ============================================
+        try:
+            family_members = (
+                self.db.query(FamilyMember)
+                .filter(FamilyMember.family_id == pet.family_id)
+                .all()
+            )
+
+            notifications = []
+
+            for member in family_members:
+                notifications.append(
+                    Notification(
+                        family_id=pet.family_id,
+                        target_user_id=member.user_id,
+                        type=NotificationType.ACTIVITY_END,
+                        title="산책 종료",
+                        message=f"{user.nickname}님이 {pet.name}와 산책을 종료했습니다.",
+                        related_pet_id=pet.pet_id,
+                        related_user_id=user.user_id,
+                    )
+                )
+
+            self.db.add_all(notifications)
+            self.db.commit()
+
+        except Exception as e:
+            print("NOTIFICATION_END_ERROR:", e)
+            # 알림 실패는 비치명적 → 로그만 찍고 rollback
+            self.db.rollback()
 
         # ============================================
         # 8) 응답 생성
