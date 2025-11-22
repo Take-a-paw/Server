@@ -1,76 +1,63 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, List
 from datetime import datetime
 
 
-class NotificationResponse(BaseModel):
-    notification_id: int
-    family_id: int
-    target_user_id: int
-    type: str
-    title: str
-    message: str
-    related_pet_id: Optional[int] = None
-    related_user_id: Optional[int] = None
-    created_at: datetime
+class RelatedPetSchema(BaseModel):
+    pet_id: int = Field(..., description="반려동물 ID")
+    name: str = Field(..., description="반려동물 이름")
+    image_url: Optional[str] = Field(None, description="반려동물 이미지 URL")
 
     class Config:
-        orm_mode = True
-        schema_extra = {
-            "example": {
-                "notification_id": 12,
-                "family_id": 5,
-                "target_user_id": 3,
-                "type": "ACTIVITY_START",
-                "title": "산책 시작",
-                "message": "지원님이 몽이와 산책을 시작했습니다.",
-                "related_pet_id": 7,
-                "related_user_id": 3,
-                "created_at": "2025-03-01T10:22:15Z"
-            }
-        }
+        from_attributes = True
 
+class RelatedUserSchema(BaseModel):
+    user_id: int = Field(..., description="사용자 ID")
+    nickname: str = Field(..., description="닉네임")
+    profile_img_url: Optional[str] = Field(None, description="프로필 이미지 URL")
+
+    class Config:
+        from_attributes = True
+
+class NotificationItemSchema(BaseModel):
+    notification_id: int = Field(..., description="알림 ID")
+    type: str = Field(..., description="알림 타입")
+    title: str = Field(..., description="알림 제목")
+    message: str = Field(..., description="알림 내용")
+
+    family_id: Optional[int] = Field(None, description="가족 ID (해당되는 경우)")
+    target_user_id: Optional[int] = Field(None, description="알림을 받는 유저 ID")
+
+    related_pet: Optional[RelatedPetSchema] = Field(
+        None, description="관련 반려동물 정보"
+    )
+    related_user: Optional[RelatedUserSchema] = Field(
+        None, description="관련 사용자 정보"
+    )
+
+    related_lat: Optional[float] = Field(None, description="관련 장소 위도")
+    related_lng: Optional[float] = Field(None, description="관련 장소 경도")
+
+    is_read: bool = Field(..., description="읽음 여부")
+    read_count: int = Field(..., description="해당 알림을 읽은 가족 수")
+    unread_count: int = Field(..., description="아직 읽지 않은 가족 수")
+
+    created_at: datetime = Field(..., description="알림 생성 시각")
+
+    class Config:
+        from_attributes = True
 
 class NotificationListResponse(BaseModel):
-    success: bool
-    status: int
-    count: int
-    notifications: List[NotificationResponse]
-    timeStamp: datetime
-    path: str
+    success: bool = Field(True, description="성공 여부")
+    status: int = Field(200, description="HTTP Status Code")
 
-    class Config:
-        orm_mode = True
-        schema_extra = {
-            "example": {
-                "success": True,
-                "status": 200,
-                "count": 2,
-                "notifications": [
-                    {
-                        "notification_id": 12,
-                        "family_id": 5,
-                        "target_user_id": 3,
-                        "type": "ACTIVITY_START",
-                        "title": "산책 시작",
-                        "message": "지원님이 몽이와 산책을 시작했습니다.",
-                        "related_pet_id": 7,
-                        "related_user_id": 3,
-                        "created_at": "2025-03-01T10:22:15Z"
-                    },
-                    {
-                        "notification_id": 13,
-                        "family_id": 5,
-                        "target_user_id": 3,
-                        "type": "REQUEST",
-                        "title": "반려동물 공유 요청",
-                        "message": "민서님이 몽이 공유 요청을 보냈습니다.",
-                        "related_pet_id": 7,
-                        "related_user_id": 10,
-                        "created_at": "2025-03-02T13:41:00Z"
-                    }
-                ],
-                "timeStamp": "2025-03-02T13:41:00Z",
-                "path": "/api/v1/notifications/pets/7"
-            }
-        }
+    notifications: List[NotificationItemSchema] = Field(
+        ..., description="알림 목록"
+    )
+
+    page: int = Field(..., description="현재 페이지 번호")
+    size: int = Field(..., description="페이지 크기")
+    total_count: int = Field(..., description="전체 알림 수")
+
+    timeStamp: str = Field(..., description="응답 생성 시각 (ISO8601)")
+    path: str = Field(..., description="요청 경로")
