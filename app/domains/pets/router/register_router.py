@@ -7,7 +7,7 @@ from app.db import get_db
 from app.schemas.error_schema import ErrorResponse
 from app.schemas.pets.pet_register_schema import PetRegisterRequest, PetRegisterResponse
 from app.schemas.pets.pet_update_schema import PetUpdateRequest, PetUpdateResponse
-from app.schemas.pets.pet_image_schema import PetImageResponse
+from app.schemas.pets.pet_image_schema import PetImageUpdateRequest, PetImageResponse
 
 from app.domains.pets.service.register_service import PetRegisterService
 from app.domains.pets.service.pet_modify_service import PetModifyService
