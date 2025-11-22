@@ -1,3 +1,6 @@
 .env
 takeapaw-67bf2-firebase-adminsdk-fbsvc-588c3bc6c2.json
 venv/
+
+# 테스트용 스크립트 (개인 개발용)
+scripts/

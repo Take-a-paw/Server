@@ -2,11 +2,15 @@
 산책 기록 샘플 데이터 추가 스크립트
 
 사용법:
-    python scripts/add_sample_walks.py [pet_id] [user_id] [기록 개수]
+    python scripts/add_sample_walks.py [pet_id] [user_id] [날짜 범위]
 
 예시:
-    python scripts/add_sample_walks.py 1 1 10
-    # pet_id=1, user_id=1에 대해 최근 10일간의 산책 기록 추가
+    python scripts/add_sample_walks.py 1 1
+    python scripts/add_sample_walks.py 1 1 14  # 최근 14일간 (기본값)
+    python scripts/add_sample_walks.py 1 1 30  # 최근 30일간
+    
+참고:
+    - 하루에 1~3번 산책한 경우가 랜덤하게 포함됩니다.
 """
 import sys
 import os
