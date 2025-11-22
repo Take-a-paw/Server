@@ -1,13 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
-
-class PetShareRequestCreate(BaseModel):
-    """반려동물 공유 요청 생성"""
-    pet_search_id: str = Field(..., description="초대코드(반려동물 검색 ID)")
-    message: Optional[str] = Field(None, description="요청 메시지")
-
-
 class PetShareApproveRequest(BaseModel):
     """반려동물 공유 요청 승인/거절"""
     status: str = Field(..., description="APPROVED 또는 REJECTED")

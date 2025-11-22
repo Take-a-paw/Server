@@ -1,3 +1,5 @@
+# app/domains/pets/service/share_request_service.py
+
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -12,15 +14,9 @@ from app.models.pet import Pet
 from app.models.notification import Notification, NotificationType
 from app.models.pet_share_request import RequestStatus
 
-# 새로운 Repo 구조
 from app.domains.pets.repository.pet_repository import PetRepository
 from app.domains.pets.repository.family_repository import FamilyRepository
 from app.domains.pets.repository.pet_share_repository import PetShareRepository
-
-from app.schemas.pets.pet_share_request_schema import (
-    PetShareRequestCreate,
-    PetShareApproveRequest,
-)
 
 
 class PetShareRequestService:
@@ -28,7 +24,7 @@ class PetShareRequestService:
         self.db = db
         self.pet_repo = PetRepository(db)
         self.share_repo = PetShareRepository(db)
-        self.family_repo = FamilyRepository(db)   # 🔥 FamilyRepository 사용!
+        self.family_repo = FamilyRepository(db)
 
     # ---------------------------------------------------------
     # 1) 공유 요청 생성
@@ -38,99 +34,65 @@ class PetShareRequestService:
         request: Request,
         authorization: Optional[str],
         pet_search_id: str,
-        body: PetShareRequestCreate,
     ):
         path = request.url.path
 
         # 1) Auth
-        if authorization is None:
+        if not authorization or not authorization.startswith("Bearer "):
             return error_response(401, "PET_SHARE_401_1", "Authorization 헤더가 필요합니다.", path)
 
-        if not authorization.startswith("Bearer "):
-            return error_response(401, "PET_SHARE_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
-
-        parts = authorization.split(" ")
-        if len(parts) != 2:
-            return error_response(401, "PET_SHARE_401_2", "Authorization 헤더 형식이 잘못되었습니다.", path)
-
-        decoded = verify_firebase_token(parts[1])
+        token = authorization.split(" ")[1]
+        decoded = verify_firebase_token(token)
         if decoded is None:
-            return error_response(401, "PET_SHARE_401_2", "유효하지 않거나 만료된 Firebase ID Token입니다.", path)
+            return error_response(401, "PET_SHARE_401_2", "유효하지 않은 토큰입니다.", path)
 
-        firebase_uid = decoded.get("uid")
+        firebase_uid = decoded["uid"]
 
         # 2) User 조회
-        user: User | None = (
-            self.db.query(User)
-            .filter(User.firebase_uid == firebase_uid)
-            .first()
-        )
+        user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
-            return error_response(404, "PET_SHARE_404_1", "해당 사용자를 찾을 수 없습니다.", path)
+            return error_response(404, "PET_SHARE_404_1", "사용자를 찾을 수 없습니다.", path)
 
-        # 3) pet_search_id
-        if not pet_search_id:
-            return error_response(400, "PET_SHARE_400_1", "pet_search_id는 필수 값입니다.", path)
-
-        # 4) Pet 조회
+        # 3) Pet 조회
         pet = self.pet_repo.get_by_search_id(pet_search_id)
         if not pet:
-            return error_response(
-                404, "PET_SHARE_404_2",
-                "해당 초대코드에 해당하는 반려동물을 찾을 수 없습니다.",
-                path
-            )
+            return error_response(404, "PET_SHARE_404_2", "해당 초대코드의 반려동물이 없습니다.", path)
 
-        # 5) 이미 family 구성원인지 확인 (FamilyRepository 사용)
+        # 4) 이미 가족 구성원인지 검사
         if self.family_repo.is_member(user.user_id, pet.family_id):
-            return error_response(
-                409, "PET_SHARE_409_1",
-                "이미 해당 반려동물이 속한 가족 그룹의 구성원입니다.",
-                path
-            )
+            return error_response(409, "PET_SHARE_409_1", "이미 가족 구성원입니다.", path)
 
-        # 6) 이미 PENDING 요청 존재?
+        # 5) 요청 중복 확인
         if self.share_repo.exists_pending_request(pet.pet_id, user.user_id):
-            return error_response(
-                409, "PET_SHARE_409_2",
-                "이미 처리 대기 중인 공유 요청이 존재합니다.",
-                path
-            )
+            return error_response(409, "PET_SHARE_409_2", "이미 처리 대기 중인 요청이 존재합니다.", path)
 
-        # 7) 요청 생성
+        # 6) 요청 생성
         try:
             req = self.share_repo.create_request(
                 pet_id=pet.pet_id,
                 requester_id=user.user_id,
-                message=body.message if body else None,
             )
             self.db.commit()
             self.db.refresh(req)
-        except Exception as e:
-            print("PET_SHARE_CREATE_ERROR:", e)
+        except Exception:
             self.db.rollback()
-            return error_response(
-                500, "PET_SHARE_500_1",
-                "반려동물 공유 요청을 생성하는 중 오류가 발생했습니다.",
-                path
-            )
-        
-        # 7-1) 🔔 공유 요청 알림
-        owner = self.db.get(User, pet.owner_id)
-        if owner:
+            return error_response(500, "PET_SHARE_500_1", "요청 생성 중 오류가 발생했습니다.", path)
+
+        # 7️⃣ Owner + 기존 Family Member 에게 알림 생성
+        family_members = self.family_repo.get_members(pet.family_id)
+        for m in family_members:
             self._create_notification(
                 family_id=pet.family_id,
-                target_user_id=owner.user_id,
+                target_user_id=m.user_id,
                 type=NotificationType.REQUEST,
                 title="반려동물 공유 요청",
                 message=f"{user.nickname}님이 {pet.name} 공유 요청을 보냈습니다.",
                 pet_id=pet.pet_id,
-                user_id=user.user_id
+                user_id=user.user_id,
+                request_id=req.request_id,
             )
 
-        # 8) Owner 정보
-        owner: User | None = self.db.get(User, pet.owner_id)
-
+        # 응답
         response = {
             "success": True,
             "status": 201,
@@ -139,19 +101,13 @@ class PetShareRequestService:
                 "pet_id": req.pet_id,
                 "requester_id": req.requester_id,
                 "status": req.status.value,
-                "message": req.message,
                 "created_at": req.created_at.isoformat(),
-                "responded_at": None,
             },
             "pet": {
                 "pet_id": pet.pet_id,
                 "name": pet.name,
                 "breed": pet.breed,
                 "image_url": pet.image_url,
-            },
-            "owner": {
-                "user_id": owner.user_id if owner else pet.owner_id,
-                "nickname": owner.nickname if owner else None,
             },
             "timeStamp": datetime.utcnow().isoformat(),
             "path": path,
@@ -167,124 +123,90 @@ class PetShareRequestService:
         request: Request,
         authorization: Optional[str],
         request_id: int,
-        body: PetShareApproveRequest,
+        body,
     ):
         path = request.url.path
 
         # 1) Auth
-        if authorization is None:
-            return error_response(401, "PET_SHARE_APPROVE_401_1", "Authorization 헤더가 필요합니다.", path)
+        if not authorization or not authorization.startswith("Bearer "):
+            return error_response(401, "PET_SHARE_APPROVE_401_1", "Authorization 필요", path)
 
-        if not authorization.startswith("Bearer "):
-            return error_response(401, "PET_SHARE_APPROVE_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
-
-        parts = authorization.split(" ")
-        decoded = verify_firebase_token(parts[1])
+        token = authorization.split(" ")[1]
+        decoded = verify_firebase_token(token)
         if decoded is None:
-            return error_response(401, "PET_SHARE_APPROVE_401_2", "유효하지 않거나 만료된 Firebase ID Token입니다.", path)
+            return error_response(401, "PET_SHARE_APPROVE_401_2", "유효하지 않은 토큰입니다.", path)
 
-        firebase_uid = decoded.get("uid")
+        firebase_uid = decoded["uid"]
 
         # 2) User 조회
-        user: User | None = (
-            self.db.query(User)
-            .filter(User.firebase_uid == firebase_uid)
-            .first()
-        )
+        user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
-            return error_response(404, "PET_SHARE_APPROVE_404_1", "해당 사용자를 찾을 수 없습니다.", path)
+            return error_response(404, "PET_SHARE_APPROVE_404_1", "사용자를 찾을 수 없습니다.", path)
 
         # 3) Body 검증
         if not body or not body.status:
-            return error_response(400, "PET_SHARE_APPROVE_400_1", "status 필드는 필수입니다.", path)
+            return error_response(400, "PET_SHARE_APPROVE_400_1", "status 필수", path)
 
-        status_upper = body.status.upper()
-        if status_upper not in ("APPROVED", "REJECTED"):
-            return error_response(400, "PET_SHARE_APPROVE_400_2", "status는 'APPROVED' 또는 'REJECTED'만 허용됩니다.", path)
-
-        new_status = RequestStatus.APPROVED if status_upper == "APPROVED" else RequestStatus.REJECTED
+        new_status = RequestStatus.APPROVED if body.status.upper() == "APPROVED" else RequestStatus.REJECTED
 
         # 4) 요청 조회
         req = self.share_repo.get_request_by_id(request_id)
         if not req:
-            return error_response(404, "PET_SHARE_APPROVE_404_2", "해당 공유 요청을 찾을 수 없습니다.", path)
+            return error_response(404, "PET_SHARE_APPROVE_404_2", "요청을 찾을 수 없습니다.", path)
 
-        # 5) pet 조회
         pet = self.db.get(Pet, req.pet_id)
-        if not pet:
-            return error_response(404, "PET_SHARE_APPROVE_404_3", "공유 요청에 연결된 반려동물을 찾을 수 없습니다.", path)
 
-        # 6) owner만 승인 가능
+        # 5) owner만 승인 가능
         if pet.owner_id != user.user_id:
-            return error_response(
-                403, "PET_SHARE_APPROVE_403_1",
-                "해당 반려동물의 소유자만 공유 요청을 승인하거나 거절할 수 있습니다.",
-                path
-            )
+            return error_response(403, "PET_SHARE_APPROVE_403_1", "owner 권한 없음", path)
 
-        # 7) 이미 처리됨?
-        if req.status in (RequestStatus.APPROVED, RequestStatus.REJECTED):
-            return error_response(
-                409, "PET_SHARE_APPROVE_409_1",
-                "이미 처리된 공유 요청입니다.",
-                path
-            )
+        # 6) 이미 처리됨
+        if req.status != RequestStatus.PENDING:
+            return error_response(409, "PET_SHARE_APPROVE_409_1", "이미 처리됨", path)
 
-        member_added = False
-        created_member = None
-
+        # 7) 승인 처리
         try:
-            # 응답 상태 업데이트
             req.status = new_status
             req.responded_at = datetime.utcnow()
 
-            # APPROVED → family_members 추가
+            created_member = None
             if new_status == RequestStatus.APPROVED:
-                if not self.family_repo.is_member(req.requester_id, pet.family_id):
-                    created_member = self.family_repo.create_member(
-                        family_id=pet.family_id,
-                        user_id=req.requester_id
-                    )
-                    member_added = True
+                created_member = self.family_repo.create_member(
+                    family_id=pet.family_id,
+                    user_id=req.requester_id
+                )
 
             self.db.commit()
             self.db.refresh(req)
-            if created_member:
-                self.db.refresh(created_member)
-
-        except Exception as e:
-            print("PET_SHARE_APPROVE_ERROR:", e)
+        except Exception:
             self.db.rollback()
-            return error_response(
-                500, "PET_SHARE_APPROVE_500_1",
-                "반려동물 공유 요청을 처리하는 중 오류가 발생했습니다.",
-                path
-            )
-        
-        # 8) 🔔 승인/거절 알림
-        requester = self.db.get(User, req.requester_id)
+            return error_response(500, "PET_SHARE_APPROVE_500_1", "처리 중 오류", path)
 
-        if requester:
-            if new_status == RequestStatus.APPROVED:
-                self._create_notification(
-                    family_id=pet.family_id,
-                    target_user_id=requester.user_id,
-                    type=NotificationType.REQUEST,
-                    title="공유 요청 승인됨",
-                    message=f"{pet.name} 공유 요청이 승인되었습니다!",
-                    pet_id=pet.pet_id,
-                    user_id=requester.user_id,
-                )
-            else:
-                self._create_notification(
-                    family_id=pet.family_id,
-                    target_user_id=requester.user_id,
-                    type=NotificationType.REQUEST,
-                    title="공유 요청 거절됨",
-                    message=f"{pet.name} 공유 요청이 거절되었습니다.",
-                    pet_id=pet.pet_id,
-                    user_id=requester.user_id,
-                )
+        # 8️⃣ 결과 알림 (기존 Family Member + Owner → 모두 받음, 신청자는 제외)
+        family_members = self.family_repo.get_members(pet.family_id)
+
+        notif_type = (
+            NotificationType.INVITE_ACCEPTED if new_status == RequestStatus.APPROVED
+            else NotificationType.INVITE_REJECTED
+        )
+        notif_title = "공유 요청 승인됨" if new_status == RequestStatus.APPROVED else "공유 요청 거절됨"
+        notif_msg = (
+            f"{pet.name} 공유 요청이 승인되었습니다!"
+            if new_status == RequestStatus.APPROVED
+            else f"{pet.name} 공유 요청이 거절되었습니다."
+        )
+
+        for m in family_members:
+            self._create_notification(
+                family_id=pet.family_id,
+                target_user_id=m.user_id,
+                type=notif_type,
+                title=notif_title,
+                message=notif_msg,
+                pet_id=pet.pet_id,
+                user_id=user.user_id,
+                request_id=req.request_id,
+            )
 
         # 응답
         response = {
@@ -295,27 +217,30 @@ class PetShareRequestService:
                 "pet_id": req.pet_id,
                 "requester_id": req.requester_id,
                 "status": req.status.value,
-                "message": req.message,
                 "created_at": req.created_at.isoformat(),
                 "responded_at": req.responded_at.isoformat(),
             },
-            "member_added": member_added,
+            "member_added": created_member is not None,
             "timeStamp": datetime.utcnow().isoformat(),
             "path": path,
         }
 
-        if member_added and created_member:
-            response["family_member"] = {
-                "id": created_member.member_id,
-                "family_id": created_member.family_id,
-                "user_id": created_member.user_id,
-                "role": created_member.role.value,
-                "joined_at": created_member.joined_at.isoformat(),
-            }
-
         return JSONResponse(status_code=200, content=jsonable_encoder(response))
 
-    def _create_notification(self, family_id, target_user_id, type, title, message, pet_id, user_id):
+    # ---------------------------------------------------------
+    # 3) 알림 생성 함수
+    # ---------------------------------------------------------
+    def _create_notification(
+        self,
+        family_id: int,
+        target_user_id: int,
+        type: NotificationType,
+        title: str,
+        message: str,
+        pet_id: int,
+        user_id: int,
+        request_id: Optional[int] = None,
+    ):
         try:
             notification = Notification(
                 family_id=family_id,
@@ -325,6 +250,7 @@ class PetShareRequestService:
                 message=message,
                 related_pet_id=pet_id,
                 related_user_id=user_id,
+                related_request_id=request_id,
             )
             self.db.add(notification)
             self.db.commit()

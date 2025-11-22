@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, DECIMAL, Enum, ForeignKey
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.models.base import Base
 import enum
 
@@ -18,6 +19,7 @@ class NotificationType(enum.Enum):
     SOS = "SOS"
     SOS_RESOLVED = "SOS_RESOLVED"
 
+
 class Notification(Base):
     __tablename__ = "notifications"
 
@@ -30,10 +32,20 @@ class Notification(Base):
     title = Column(String(100), nullable=False)
     message = Column(String(255), nullable=False)
 
+    # 새로운 필드 ⭐
     related_pet_id = Column(Integer, ForeignKey("pets.pet_id"))
     related_user_id = Column(Integer, ForeignKey("users.user_id"))
+
+    # 공유 요청 승인/거절을 위한 request_id ⭐
+    related_request_id = Column(Integer, ForeignKey("pet_share_requests.request_id"))
+
     related_lat = Column(DECIMAL(10, 7))
     related_lng = Column(DECIMAL(10, 7))
 
-    is_read = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
+
+    # relationships
+    related_pet = relationship("Pet", foreign_keys=[related_pet_id])
+    related_user = relationship("User", foreign_keys=[related_user_id])
+    target_user = relationship("User", foreign_keys=[target_user_id])
+    related_request = relationship("PetShareRequest", foreign_keys=[related_request_id])

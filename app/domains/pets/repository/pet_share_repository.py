@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 
 from app.models.pet_share_request import PetShareRequest, RequestStatus
 from app.models.family_member import FamilyMember
@@ -37,11 +37,10 @@ class PetShareRepository:
     # -------------------------------
     # Share Request
     # -------------------------------
-    def create_request(self, pet_id: int, requester_id: int, message: str):
+    def create_request(self, pet_id: int, requester_id: int):
         req = PetShareRequest(
             pet_id=pet_id,
             requester_id=requester_id,
-            message=message,
             status=RequestStatus.PENDING
         )
         self.db.add(req)
@@ -67,3 +66,25 @@ class PetShareRepository:
         req.status = status
         self.db.flush()
         return req
+
+    # ---------------------------------------------------------
+    # ⭐ 추가: 특정 사용자가 보낸 요청 목록
+    # ---------------------------------------------------------
+    def get_requests_by_requester(self, requester_id: int):
+        return (
+            self.db.query(PetShareRequest)
+            .filter(PetShareRequest.requester_id == requester_id)
+            .order_by(PetShareRequest.created_at.desc())
+            .all()
+        )
+
+    # ---------------------------------------------------------
+    # ⭐ 추가: 특정 pet에 대한 모든 요청 목록
+    # ---------------------------------------------------------
+    def get_requests_by_pet(self, pet_id: int):
+        return (
+            self.db.query(PetShareRequest)
+            .filter(PetShareRequest.pet_id == pet_id)
+            .order_by(PetShareRequest.created_at.desc())
+            .all()
+        )

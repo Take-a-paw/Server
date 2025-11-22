@@ -16,7 +16,6 @@ class PetShareRequest(Base):
     requester_id = Column(Integer, ForeignKey("users.user_id"), nullable=False)
 
     status = Column(Enum(RequestStatus), default=RequestStatus.PENDING)
-    message = Column(String(255))
 
     created_at = Column(DateTime, default=func.now())
     responded_at = Column(DateTime)

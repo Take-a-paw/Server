@@ -1,10 +1,10 @@
-from sqlalchemy.orm import Session
+# app/domains/notifications/repository/notification_repository.py
+
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
-from app.models.notification import Notification
-from app.models.notification_read import NotificationRead
-from app.models.pet import Pet
-from app.models.user import User
+from app.models.notification import Notification, NotificationType
+from app.models.notification_reads import NotificationRead
 from app.models.family_member import FamilyMember
 
 
@@ -12,49 +12,86 @@ class NotificationRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    # 전체 family 구성원 수 조회
-    def get_family_member_count(self, family_id: int):
-        return (
-            self.db.query(FamilyMember)
-            .filter(FamilyMember.family_id == family_id)
-            .count()
-        )
-
-    # 알림 읽음 count 조회
-    def get_read_count(self, notification_id: int):
-        return (
-            self.db.query(NotificationRead)
-            .filter(NotificationRead.notification_id == notification_id)
-            .count()
-        )
-
-    # notifications 조회 (페이징 + type + pet_id)
-    def get_notifications(self, user_id: int, pet_id: int | None, type_val: str | None, page: int, size: int):
+    def get_notifications(
+        self,
+        user_id: int,
+        pet_id: int | None,
+        notif_type: str | None,
+        page: int,
+        size: int
+    ):
         query = (
             self.db.query(Notification)
-            .filter(Notification.target_user_id == user_id)
+            .options(
+                joinedload(Notification.related_user),
+                joinedload(Notification.related_pet),
+            )
         )
 
-        if pet_id:
+        # 사용자가 속한 family만 조회
+        query = query.join(
+            FamilyMember,
+            FamilyMember.family_id == Notification.family_id
+        ).filter(FamilyMember.user_id == user_id)
+
+        # pet 필터
+        if pet_id is not None:
             query = query.filter(Notification.related_pet_id == pet_id)
 
-        if type_val:
-            query = query.filter(Notification.type == type_val)
+        # type 필터
+        if notif_type is not None:
+            try:
+                notif_type_enum = NotificationType[notif_type]
+                query = query.filter(Notification.type == notif_type_enum)
+            except KeyError:
+                return None, "INVALID_TYPE"
 
+        # ⭐ 변경된 정렬: created_at ASC (카톡 스타일)
+        query = query.order_by(Notification.created_at.asc())
+
+        # total count
         total_count = query.count()
 
-        notifications = (
-            query.order_by(Notification.created_at.desc())
-            .offset(page * size)
-            .limit(size)
-            .all()
+        # paging
+        items = query.offset(page * size).limit(size).all()
+
+        return items, total_count
+
+    # ------------------------------
+    # read/unread 계산 관련 추가 메서드들
+    # ------------------------------
+    def get_family_member_count(self, family_id: int) -> int:
+        return (
+            self.db.query(func.count(FamilyMember.user_id))
+            .filter(FamilyMember.family_id == family_id)
+            .scalar()
         )
 
-        return notifications, total_count
+    def get_read_count(self, notification_id: int) -> int:
+        return (
+            self.db.query(func.count(NotificationRead.user_id))
+            .filter(NotificationRead.notification_id == notification_id)
+            .scalar()
+        )
 
-    # 관련 객체 조회
-    def get_related_pet(self, pet_id: int):
-        return self.db.query(Pet).filter(Pet.pet_id == pet_id).first()
+    def mark_as_read(self, notification_id: int, user_id: int):
+        existing = (
+            self.db.query(NotificationRead)
+            .filter(
+                NotificationRead.notification_id == notification_id,
+                NotificationRead.user_id == user_id
+            )
+            .first()
+        )
 
-    def get_related_user(self, user_id: int):
-        return self.db.query(User).filter(User.user_id == user_id).first()
+        if existing:
+            return "ALREADY_READ"
+
+        new_row = NotificationRead(
+            notification_id=notification_id,
+            user_id=user_id
+        )
+
+        self.db.add(new_row)
+        self.db.commit()
+        return "OK"

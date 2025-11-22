@@ -1,5 +1,8 @@
 from pydantic import BaseModel, Field
 
+class PetImageUpdateRequest(BaseModel):
+    image_url: str
+
 class PetImageResponse(BaseModel):
     """반려동물 이미지 업로드 응답"""
     success: bool = Field(True, description="성공 여부")

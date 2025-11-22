@@ -7,6 +7,8 @@ from app.domains.walk.router.recommendation_router import router as walk_recomme
 from app.domains.record.router.walk_router import router as record_walk_router
 from app.domains.users.router.family_member_router import router as family_member_router
 from app.domains.users.router.users_router import router as user_router
+from app.domains.notifications.router.notification_router import router as notifications_router
+
 
 from fastapi.openapi.utils import get_openapi
 
@@ -43,6 +45,9 @@ def create_app() -> FastAPI:
 
     # Record APIs
     app.include_router(record_walk_router)
+
+    # Notifications
+    app.include_router(notifications_router)
 
     @app.get("/")
     def root():

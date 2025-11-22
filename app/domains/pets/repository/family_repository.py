@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List
 
 from app.models.family import Family
 from app.models.family_member import FamilyMember, MemberRole
@@ -53,4 +53,14 @@ class FamilyRepository:
             )
             .first()
             is not None
+        )
+
+    # ---------------------------------------------------------
+    # ⭐ NEW: 가족 구성원 전체 조회 (owner 포함)
+    # ---------------------------------------------------------
+    def get_members(self, family_id: int) -> List[FamilyMember]:
+        return (
+            self.db.query(FamilyMember)
+            .filter(FamilyMember.family_id == family_id)
+            .all()
         )
