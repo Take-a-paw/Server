@@ -8,7 +8,8 @@ from app.schemas.pets.pet_share_request_schema import (
     PetShareRequestResponse,
     PetShareApproveRequest,
     PetShareApproveResponse,
-    MyShareRequestListResponse
+    MyShareRequestListResponse,
+    ReceivedShareRequestListResponse
 )
 from app.domains.pets.service.share_request_service import PetShareRequestService
 
@@ -35,7 +36,7 @@ router = APIRouter(
         500: {"model": ErrorResponse},
     },
 )
-async def create_pet_share_request(
+def create_pet_share_request(
     pet_search_id: str,
     request: Request,
     authorization: Optional[str] = Header(None, description="Firebase ID 토큰"),
@@ -72,7 +73,7 @@ async def create_pet_share_request(
         500: {"model": ErrorResponse},
     },
 )
-async def approve_pet_share_request(
+def approve_pet_share_request(
     request: Request,
     request_id: int,
     body: PetShareApproveRequest,
@@ -117,6 +118,39 @@ def get_my_share_requests(
 ):
     service = PetShareRequestService(db)
     return service.get_my_requests(
+        request=request,
+        authorization=authorization,
+        status=status,
+        page=page,
+        size=size,
+    )
+
+
+# ---------------------------------------------------------
+# 3) 내가 받은 공유 요청 목록 조회
+# ---------------------------------------------------------
+@router.get(
+    "/share/requests/received",
+    summary="내가 받은 공유 요청 리스트 조회",
+    description="로그인한 사용자가 owner인 pet들에 대해 받은 공유 요청 목록을 조회합니다.",
+    response_model=ReceivedShareRequestListResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    }
+)
+def get_received_share_requests(
+    request: Request,
+    status: Optional[str] = None,
+    page: int = 0,
+    size: int = 20,
+    authorization: Optional[str] = Header(None, description="Firebase ID 토큰"),
+    db: Session = Depends(get_db),
+):
+    service = PetShareRequestService(db)
+    return service.get_received_requests(
         request=request,
         authorization=authorization,
         status=status,

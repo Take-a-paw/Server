@@ -116,3 +116,36 @@ class PetShareRepository:
             .order_by(PetShareRequest.created_at.desc())
             .all()
         )
+
+    # ---------------------------------------------------------
+    # ⭐ 추가: 내가 owner인 pet들에 대한 받은 요청 목록 (페이지네이션)
+    # ---------------------------------------------------------
+    def get_received_requests_by_owner(
+        self,
+        owner_id: int,
+        status: Optional[RequestStatus],
+        page: int,
+        size: int
+    ):
+        """
+        owner_id가 소유한 pet들에 대해 받은 공유 요청 목록 조회
+        """
+        query = (
+            self.db.query(PetShareRequest)
+            .join(Pet, PetShareRequest.pet_id == Pet.pet_id)
+            .filter(Pet.owner_id == owner_id)
+        )
+
+        if status:
+            query = query.filter(PetShareRequest.status == status)
+
+        total = query.count()
+
+        items = (
+            query.order_by(PetShareRequest.created_at.desc())
+            .offset(page * size)
+            .limit(size)
+            .all()
+        )
+
+        return items, total
