@@ -38,12 +38,17 @@ class PetShareRequestService:
         path = request.url.path
 
         # 1) Auth
+        print(f"[DEBUG] Authorization header: {authorization}")
         if not authorization or not authorization.startswith("Bearer "):
+            print("[DEBUG] Authorization 헤더가 없거나 형식이 잘못됨")
             return error_response(401, "PET_SHARE_401_1", "Authorization 헤더가 필요합니다.", path)
 
         token = authorization.split(" ")[1]
+        print(f"[DEBUG] Token (first 20 chars): {token[:20]}...")
         decoded = verify_firebase_token(token)
+        print(f"[DEBUG] Decoded token: {decoded}")
         if decoded is None:
+            print("[DEBUG] Firebase 토큰 검증 실패")
             return error_response(401, "PET_SHARE_401_2", "유효하지 않은 토큰입니다.", path)
 
         firebase_uid = decoded["uid"]
@@ -314,6 +319,84 @@ class PetShareRequestService:
                 "pet_id": pet.pet_id,
                 "pet_name": pet.name,
                 "pet_image_url": pet.image_url,
+                "status": req.status.value,
+                "created_at": req.created_at.isoformat() if req.created_at else None,
+                "responded_at": req.responded_at.isoformat() if req.responded_at else None,
+            })
+
+        return {
+            "success": True,
+            "status": 200,
+            "requests": results,
+            "page": page,
+            "size": size,
+            "total_count": total,
+            "timeStamp": datetime.utcnow().isoformat(),
+            "path": path,
+        }
+
+    # ---------------------------------------------------------
+    # 4) 내가 받은 공유 요청 목록 조회
+    # ---------------------------------------------------------
+    def get_received_requests(
+        self,
+        request: Request,
+        authorization: Optional[str],
+        status: Optional[str],
+        page: int,
+        size: int,
+    ):
+        path = request.url.path
+
+        # 1) Auth
+        if not authorization or not authorization.startswith("Bearer "):
+            return error_response(401, "RECEIVED_REQ_LIST_401", "Authorization 필요", path)
+
+        token = authorization.split(" ")[1]
+        decoded = verify_firebase_token(token)
+        if decoded is None:
+            return error_response(401, "RECEIVED_REQ_LIST_401_2", "유효하지 않은 토큰입니다.", path)
+
+        firebase_uid = decoded["uid"]
+
+        # 2) User 조회
+        user = (
+            self.db.query(User)
+            .filter(User.firebase_uid == firebase_uid)
+            .first()
+        )
+        if not user:
+            return error_response(404, "RECEIVED_REQ_LIST_404_1", "사용자를 찾을 수 없습니다.", path)
+
+        # 3) Status 파싱
+        parsed_status = None
+        if status:
+            try:
+                parsed_status = RequestStatus(status.upper())
+            except Exception:
+                return error_response(400, "RECEIVED_REQ_LIST_400", "status 값이 잘못되었습니다.", path)
+
+        # 4) Repository 조회 (내가 owner인 pet들에 대한 받은 요청)
+        items, total = self.share_repo.get_received_requests_by_owner(
+            owner_id=user.user_id,
+            status=parsed_status,
+            page=page,
+            size=size,
+        )
+
+        # 5) 응답 조립
+        results = []
+        for req in items:
+            pet = self.db.get(Pet, req.pet_id)
+            requester = self.db.get(User, req.requester_id)
+
+            results.append({
+                "request_id": req.request_id,
+                "pet_id": pet.pet_id,
+                "pet_name": pet.name,
+                "pet_image_url": pet.image_url,
+                "requester_id": requester.user_id,
+                "requester_nickname": requester.nickname,
                 "status": req.status.value,
                 "created_at": req.created_at.isoformat() if req.created_at else None,
                 "responded_at": req.responded_at.isoformat() if req.responded_at else None,
