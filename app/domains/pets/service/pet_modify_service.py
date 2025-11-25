@@ -14,6 +14,7 @@ from app.core.error_handler import error_response
 
 from app.models.user import User
 from app.models.pet import Pet, PetGender
+from app.models.family import Family
 from app.models.family_member import FamilyMember, MemberRole
 from app.models.walk import Walk
 from app.models.photo import Photo
@@ -401,6 +402,26 @@ class PetModifyService:
 
             # 9️⃣ 마지막으로 Pet 삭제
             self.db.delete(pet)
+
+            # ---------------------------------------------------
+            # 🔥 펫이 삭제되면 family도 함께 삭제 (항상)
+            # ---------------------------------------------------
+            family_id = pet.family_id
+
+            # 1) family_members 삭제
+            self.db.query(FamilyMember).filter(
+                FamilyMember.family_id == family_id
+            ).delete(synchronize_session=False)
+
+            # 2) family에 속한 나머지 펫들도 삭제
+            self.db.query(Pet).filter(
+                Pet.family_id == family_id
+            ).delete(synchronize_session=False)
+
+            # 3) family 삭제
+            self.db.query(Family).filter(
+                Family.family_id == family_id
+            ).delete(synchronize_session=False)
 
             # Commit
             self.db.commit()
