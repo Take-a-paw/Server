@@ -1,0 +1,67 @@
+# app/domains/notifications/repository/health_repository.py
+
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_
+from datetime import datetime, timedelta
+
+from app.models.pet import Pet
+from app.models.family_member import FamilyMember
+from app.models.walk import Walk
+from app.models.pet_walk_recommendation import PetWalkRecommendation
+
+
+class HealthRepository:
+    def __init__(self, db: Session):
+        self.db = db
+
+    # -----------------------
+    # pet 조회
+    # -----------------------
+    def get_pet(self, pet_id: int):
+        return (
+            self.db.query(Pet)
+            .filter(Pet.pet_id == pet_id)
+            .first()
+        )
+
+    # -----------------------
+    # user → 같은 family인지 확인
+    # -----------------------
+    def user_in_family(self, user_id: int, family_id: int):
+        return (
+            self.db.query(FamilyMember)
+            .filter(
+                FamilyMember.user_id == user_id,
+                FamilyMember.family_id == family_id
+            )
+            .first()
+            is not None
+        )
+
+    # -----------------------
+    # 최근 7일 산책 시간(분)
+    # -----------------------
+    def get_weekly_walk_minutes(self, pet_id: int):
+        seven_days_ago = datetime.utcnow() - timedelta(days=7)
+
+        result = (
+            self.db.query(func.sum(Walk.duration_min))
+            .filter(
+                Walk.pet_id == pet_id,
+                Walk.end_time != None,
+                Walk.start_time >= seven_days_ago
+            )
+            .scalar()
+        )
+
+        return int(result or 0)  # None → 0
+
+    # -----------------------
+    # 추천 산책 정보
+    # -----------------------
+    def get_recommendation(self, pet_id: int):
+        return (
+            self.db.query(PetWalkRecommendation)
+            .filter(PetWalkRecommendation.pet_id == pet_id)
+            .first()
+        )

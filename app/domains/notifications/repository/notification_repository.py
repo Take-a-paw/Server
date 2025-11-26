@@ -12,6 +12,9 @@ class NotificationRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    # ============================
+    # 📌 알림 조회
+    # ============================
     def get_notifications(
         self,
         user_id: int,
@@ -20,25 +23,34 @@ class NotificationRepository:
         page: int,
         size: int
     ):
+        # 1. 사용자가 속한 family_id 목록
+        family_ids = (
+            self.db.query(FamilyMember.family_id)
+            .filter(FamilyMember.user_id == user_id)
+            .subquery()
+        )
+
         query = (
             self.db.query(Notification)
             .options(
                 joinedload(Notification.related_user),
                 joinedload(Notification.related_pet),
             )
+            .filter(
+                # 개인에게 온 알림
+                (Notification.target_user_id == user_id)
+                |
+                # 가족 전체에게 온 알림
+                ((Notification.target_user_id.is_(None)) &
+                (Notification.family_id.in_(family_ids)))
+            )
         )
 
-        # 사용자가 속한 family의 알림만 조회
-        query = query.join(
-            FamilyMember,
-            FamilyMember.family_id == Notification.family_id
-        ).filter(FamilyMember.user_id == user_id)
-
-        # pet 필터 적용
+        # pet 필터
         if pet_id is not None:
             query = query.filter(Notification.related_pet_id == pet_id)
 
-        # type 필터 적용
+        # type 필터
         if notif_type is not None:
             try:
                 t_enum = NotificationType[notif_type]
@@ -46,18 +58,18 @@ class NotificationRepository:
             except KeyError:
                 return None, "INVALID_TYPE"
 
-        # 카톡처럼 오래된 → 최신순 ASC 정렬
+        # 오래된 순으로 정렬 (채팅 스타일)
         query = query.order_by(Notification.created_at.asc())
 
-        total_count = query.count()
-
+        total = query.count()
         items = query.offset(page * size).limit(size).all()
 
-        return items, total_count
+        return items, total
 
-    # ------------------------------------------------------
-    # 📌 가족 구성원 수 (sender 포함)
-    # ------------------------------------------------------
+
+    # ============================
+    # 📌 가족 인원수
+    # ============================
     def get_family_member_count(self, family_id: int) -> int:
         return (
             self.db.query(func.count(FamilyMember.user_id))
@@ -65,10 +77,10 @@ class NotificationRepository:
             .scalar()
         )
 
-    # ------------------------------------------------------
-    # 📌 읽은 사람 수 (sender 제외)
-    # ------------------------------------------------------
-    def get_read_count(self, notification_id):
+    # ============================
+    # 📌 읽은 사람 수
+    # ============================
+    def get_read_count(self, notification_id: int) -> int:
         return (
             self.db.query(NotificationRead.user_id)
             .filter(NotificationRead.notification_id == notification_id)
@@ -76,17 +88,15 @@ class NotificationRepository:
             .count()
         )
 
-
-
-    # ------------------------------------------------------
+    # ============================
     # 📌 읽음 처리
-    # ------------------------------------------------------
+    # ============================
     def mark_as_read(self, notification_id: int, user_id: int):
         existing = (
             self.db.query(NotificationRead)
             .filter(
                 NotificationRead.notification_id == notification_id,
-                NotificationRead.user_id == user_id
+                NotificationRead.user_id == user_id,
             )
             .first()
         )
@@ -102,10 +112,10 @@ class NotificationRepository:
         self.db.add(new_row)
         self.db.commit()
         return "OK"
-    
-    # ------------------------------------------------------
-    # 📌 알림 단건 조회 (읽음 처리용)
-    # ------------------------------------------------------
+
+    # ============================
+    # 📌 단일 조회
+    # ============================
     def get_notification_by_id(self, notification_id: int):
         return (
             self.db.query(Notification)
@@ -113,4 +123,27 @@ class NotificationRepository:
             .first()
         )
 
-    
+    # ============================
+    # 📌 알림 생성 (family 공용)
+    # ============================
+    def create_notification(
+        self,
+        family_id: int,
+        related_pet_id: int,
+        related_user_id: int,
+        notif_type: NotificationType,
+        title: str,
+        message: str,
+        target_user_id=None,   # ⭐ 기본값 None → 가족 공용 알림
+    ):
+        notif = Notification(
+            family_id=family_id,
+            target_user_id=target_user_id,
+            related_pet_id=related_pet_id,
+            related_user_id=related_user_id,
+            type=notif_type,
+            title=title,
+            message=message,
+        )
+        self.db.add(notif)
+        return notif

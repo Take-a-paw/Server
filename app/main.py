@@ -8,6 +8,8 @@ from app.domains.record.router.walk_router import router as record_walk_router
 from app.domains.users.router.family_member_router import router as family_member_router
 from app.domains.users.router.users_router import router as user_router
 from app.domains.notifications.router.notification_router import router as notifications_router
+from app.domains.notifications.router.health_router import router as health_router
+from app.domains.notifications.router.weather_router import router as weather_router
 from app.domains.walk.router.ranking_router import router as ranking_router
 
 
@@ -50,7 +52,8 @@ def create_app() -> FastAPI:
 
     # Notifications
     app.include_router(notifications_router)
-
+    app.include_router(health_router)
+    app.include_router(weather_router)
 
 
     @app.get("/")

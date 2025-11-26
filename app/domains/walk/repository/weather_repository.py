@@ -48,4 +48,3 @@ class WeatherRepository:
                 "cache_age_seconds": 0,
                 "is_stale": False,
             }
-

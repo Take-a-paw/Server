@@ -18,4 +18,9 @@ class Walk(Base):
     weather_status = Column(String(50))
     weather_temp_c = Column(Float)
 
+    # Walk 모델에 추가
+    last_lat = Column(Float, nullable=True)
+    last_lng = Column(Float, nullable=True)
+
+
     created_at = Column(DateTime, default=func.now())

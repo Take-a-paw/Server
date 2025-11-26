@@ -13,8 +13,10 @@ class SessionRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    # =====================================================
+    # 진행 중인 산책 가져오기
+    # =====================================================
     def get_ongoing_walk_by_pet_id(self, pet_id: int) -> Walk | None:
-        """pet_id로 진행 중인 산책 조회 (end_time이 null인 것)"""
         return (
             self.db.query(Walk)
             .filter(
@@ -26,22 +28,27 @@ class SessionRepository:
             .first()
         )
 
+    # =====================================================
+    # Walk 세션 생성
+    # =====================================================
     def create_walk(
         self,
         pet_id: int,
         user_id: int,
         start_time: datetime,
     ) -> Walk:
-        """새로운 산책 세션 생성"""
         walk = Walk(
             pet_id=pet_id,
             user_id=user_id,
             start_time=start_time,
         )
         self.db.add(walk)
-        self.db.flush()  # walk_id를 얻기 위해 flush
+        self.db.flush()   # walk_id 확보
         return walk
 
+    # =====================================================
+    # 위치 Tracking Point 저장
+    # =====================================================
     def create_tracking_point(
         self,
         walk_id: int,
@@ -49,7 +56,6 @@ class SessionRepository:
         longitude: float,
         timestamp: datetime,
     ) -> WalkTrackingPoint:
-        """산책 시작 지점의 tracking point 생성"""
         point = WalkTrackingPoint(
             walk_id=walk_id,
             latitude=latitude,
@@ -59,14 +65,19 @@ class SessionRepository:
         self.db.add(point)
         return point
 
+    # =====================================================
+    # walk_id 기준 Walk 조회
+    # =====================================================
     def get_walk_by_walk_id(self, walk_id: int) -> Walk | None:
-        """walk_id로 산책 세션 조회"""
         return (
             self.db.query(Walk)
             .filter(Walk.walk_id == walk_id)
             .first()
         )
 
+    # =====================================================
+    # 산책 종료 처리 (last_lat / last_lng 포함)
+    # =====================================================
     def end_walk(
         self,
         walk: Walk,
@@ -77,25 +88,35 @@ class SessionRepository:
         last_lng: Optional[float] = None,
         route_data: Optional[dict] = None,
     ) -> Walk:
-        """산책 세션 종료"""
+
         walk.end_time = end_time
+
         if duration_min is not None:
             walk.duration_min = duration_min
+
         if distance_km is not None:
             walk.distance_km = distance_km
-        # route_data는 JSON 문자열로 저장 (Walk 모델에 route_data 컬럼이 있다고 가정)
-        # 실제로는 마이그레이션으로 route_data 컬럼을 추가해야 함
-        # 일단 주석 처리하고, 나중에 추가 가능하도록 함
+
+        # ⭐ 마지막 위치 저장 (6시 자동 날씨 추천에서 사용됨)
+        if last_lat is not None:
+            walk.last_lat = last_lat
+        if last_lng is not None:
+            walk.last_lng = last_lng
+
+        # ⭐ route_data 저장은 추후 walk 모델 컬럼 추가 후 활성화
         # if route_data is not None:
         #     walk.route_data = json.dumps(route_data)
+
         return walk
 
+    # =====================================================
+    # 특정 날짜 ActivityStat 조회 or 생성
+    # =====================================================
     def get_or_create_activity_stat(
         self,
         pet_id: int,
         stat_date: date,
     ) -> ActivityStat:
-        """활동 통계 조회 또는 생성"""
         stat = (
             self.db.query(ActivityStat)
             .filter(
@@ -120,21 +141,23 @@ class SessionRepository:
         
         return stat
 
+    # =====================================================
+    # ActivityStat 업데이트
+    # =====================================================
     def update_activity_stat(
         self,
         stat: ActivityStat,
         distance_km: float,
         duration_min: int,
     ) -> ActivityStat:
-        """활동 통계 업데이트"""
+
         stat.total_walks += 1
         stat.total_distance_km += distance_km
         stat.total_duration_min += duration_min
         
-        # 평균 속도 계산 (km/h)
+        # 평균 속도 (km/h)
         if stat.total_duration_min > 0:
             total_hours = stat.total_duration_min / 60.0
             stat.avg_speed_kmh = float(stat.total_distance_km) / total_hours
         
         return stat
-

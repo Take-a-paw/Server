@@ -192,17 +192,11 @@ class SessionService:
                 path
             )
 
-        # ============================================
-        # 7-1) 산책 시작 알림 생성 (중복 방지 적용)
+                # ============================================
+        # 7-1) 산책 시작 알림 생성 (FAMILY 기준 1개)
         # ============================================
         try:
-            family_members = (
-                self.db.query(FamilyMember)
-                .filter(FamilyMember.family_id == pet.family_id)
-                .all()
-            )
-
-            # 🔥 중복 체크: 동일 유저/동일 펫/ACTIVITY_START 알림이 방금 생성되었는지 확인
+            # 🔥 기존 중복 알림 방지 로직: 시작시간 이후 이미 생성된 알림이 있는지 확인
             existing_start = (
                 self.db.query(Notification)
                 .filter(
@@ -210,28 +204,26 @@ class SessionService:
                     Notification.related_pet_id == pet.pet_id,
                     Notification.related_user_id == user.user_id,
                     Notification.type == NotificationType.ACTIVITY_START,
-                    Notification.created_at >= walk.start_time  # 이번 산책 이후에 생성된 알림만 체크
+                    Notification.created_at >= walk.start_time,
                 )
                 .first()
             )
 
             if existing_start:
                 print("SKIP: Duplicate ACTIVITY_START notification")
-            else:
-                notifications = [
-                    Notification(
-                        family_id=pet.family_id,
-                        target_user_id=member.user_id,
-                        type=NotificationType.ACTIVITY_START,
-                        title="산책 시작",
-                        message=f"{user.nickname}님이 {pet.name}와 산책을 시작했습니다.",
-                        related_pet_id=pet.pet_id,
-                        related_user_id=user.user_id,
-                    )
-                    for member in family_members
-                ]
 
-                self.db.add_all(notifications)
+            else:
+                notif = Notification(
+                    family_id=pet.family_id,
+                    target_user_id=None,  # ⭐ 가족 전체에게 보여주는 공용 알림
+                    type=NotificationType.ACTIVITY_START,
+                    title="산책 시작",
+                    message=f"{user.nickname}님이 {pet.name}와 산책을 시작했습니다.",
+                    related_pet_id=pet.pet_id,
+                    related_user_id=user.user_id,
+                )
+
+                self.db.add(notif)
                 self.db.commit()
 
         except Exception as e:
@@ -482,9 +474,7 @@ class SessionService:
         # 1) Authorization 검증
         # ============================================
         if authorization is None:
-            return error_response(
-                401, "WALK_END_401_1", "Authorization 헤더가 필요합니다.", path
-            )
+            return error_response(401, "WALK_END_401_1", "Authorization 헤더가 필요합니다.", path)
 
         if not authorization.startswith("Bearer "):
             return error_response(
@@ -503,7 +493,6 @@ class SessionService:
 
         id_token = parts[1]
         decoded = verify_firebase_token(id_token)
-
         if decoded is None:
             return error_response(
                 401, "WALK_END_401_2",
@@ -534,33 +523,20 @@ class SessionService:
         # ============================================
         try:
             walk = self.session_repo.get_walk_by_walk_id(walk_id)
-            
             if not walk:
-                return error_response(
-                    404, "WALK_END_404_2",
-                    "요청하신 산책 세션을 찾을 수 없습니다.",
-                    path
-                )
+                return error_response(404, "WALK_END_404_2", "요청하신 산책 세션을 찾을 수 없습니다.", path)
         except Exception as e:
             print("WALK_QUERY_ERROR:", e)
-            return error_response(
-                500, "WALK_END_500_1",
-                "산책을 종료하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-                path
-            )
+            return error_response(500, "WALK_END_500_1", "산책을 종료하는 중 오류가 발생했습니다.", path)
 
         # ============================================
-        # 4) 이미 종료된 산책 체크
+        # 4) 이미 종료된 산책인지 체크
         # ============================================
         if walk.end_time is not None:
-            return error_response(
-                409, "WALK_END_409_1",
-                "이미 종료된 산책 세션입니다.",
-                path
-            )
+            return error_response(409, "WALK_END_409_1", "이미 종료된 산책 세션입니다.", path)
 
         # ============================================
-        # 5) 권한 체크 (family_members 확인)
+        # 5) family 권한 체크
         # ============================================
         pet: Pet = (
             self.db.query(Pet)
@@ -569,11 +545,7 @@ class SessionService:
         )
 
         if not pet:
-            return error_response(
-                404, "WALK_END_404_2",
-                "요청하신 산책 세션을 찾을 수 없습니다.",
-                path
-            )
+            return error_response(404, "WALK_END_404_2", "요청하신 산책 세션을 찾을 수 없습니다.", path)
 
         family_member: FamilyMember = (
             self.db.query(FamilyMember)
@@ -585,63 +557,53 @@ class SessionService:
         )
 
         if not family_member:
-            return error_response(
-                403, "WALK_END_403_1",
-                "해당 산책을 종료할 권한이 없습니다.",
-                path
-            )
+            return error_response(403, "WALK_END_403_1", "해당 산책을 종료할 권한이 없습니다.", path)
 
         # ============================================
-        # 6) Body 유효성 검사
+        # 6) Body 값 검증
         # ============================================
-        # 6-1) total_distance_km 형식/값 체크
+        # distance
         distance_km = None
         if body.total_distance_km is not None:
             try:
                 distance_km = float(body.total_distance_km)
                 if distance_km < 0:
-                    return error_response(
-                        400, "WALK_END_400_1",
-                        "총 이동 거리 값이 올바르지 않습니다.",
-                        path
-                    )
-            except (ValueError, TypeError):
-                return error_response(
-                    400, "WALK_END_400_1",
-                    "총 이동 거리 값이 올바르지 않습니다.",
-                    path
-                )
+                    return error_response(400, "WALK_END_400_1", "총 이동 거리 값이 올바르지 않습니다.", path)
+            except:
+                return error_response(400, "WALK_END_400_1", "총 이동 거리 값이 올바르지 않습니다.", path)
 
-        # 6-2) total_duration_min 형식/값 체크
+        # duration
         duration_min = None
         if body.total_duration_min is not None:
             try:
                 duration_min = int(body.total_duration_min)
                 if duration_min < 0:
-                    return error_response(
-                        400, "WALK_END_400_2",
-                        "총 산책 시간 값이 올바르지 않습니다.",
-                        path
-                    )
-            except (ValueError, TypeError):
-                return error_response(
-                    400, "WALK_END_400_2",
-                    "총 산책 시간 값이 올바르지 않습니다.",
-                    path
-                )
+                    return error_response(400, "WALK_END_400_2", "총 산책 시간 값이 올바르지 않습니다.", path)
+            except:
+                return error_response(400, "WALK_END_400_2", "총 산책 시간 값이 올바르지 않습니다.", path)
 
-        # route_data를 dict로 변환
+        # route_data
         route_data_dict = None
         if body.route_data is not None:
-            route_data_dict = body.route_data.model_dump() if hasattr(body.route_data, 'model_dump') else dict(body.route_data)
+            route_data_dict = (
+                body.route_data.model_dump()
+                if hasattr(body.route_data, "model_dump")
+                else dict(body.route_data)
+            )
 
         # ============================================
-        # 7) 산책 종료 처리
+        # 7) 산책 종료 처리 (+ 칼로리 계산)
         # ============================================
         try:
             end_time = datetime.utcnow()
 
-            # 산책 종료 정보 업데이트
+            # ⭐ 칼로리 계산 로직 (MET=3 고정)
+            calories = None
+            if duration_min and distance_km:
+                pet_weight = pet.weight if pet.weight else 5  # weight 없으면 디폴트 5kg
+                MET = 3.0
+                calories = pet_weight * 1.036 * duration_min * MET / 60
+
             updated_walk = self.session_repo.end_walk(
                 walk=walk,
                 end_time=end_time,
@@ -652,17 +614,15 @@ class SessionService:
                 route_data=route_data_dict,
             )
 
-            # activity_stats 업데이트
+            updated_walk.calories = calories
+
+            # ============================================
+            # 7-1) activity_stats 업데이트
+            # ============================================
             activity_stat = None
-            if (
-                distance_km is not None 
-                and duration_min is not None 
-                and distance_km > 0 
-                and duration_min > 0
-            ):
-                kst = pytz.timezone('Asia/Seoul')
-                now_kst = datetime.now(kst)
-                stat_date = now_kst.date()
+            if distance_km and duration_min:
+                kst = pytz.timezone("Asia/Seoul")
+                stat_date = datetime.now(kst).date()
 
                 activity_stat = self.session_repo.get_or_create_activity_stat(
                     pet_id=walk.pet_id,
@@ -675,7 +635,7 @@ class SessionService:
                     duration_min=duration_min,
                 )
 
-            # 🔥 walk 종료는 반드시 성공해야 하므로 먼저 commit
+            # DB Commit
             self.db.commit()
             self.db.refresh(updated_walk)
             if activity_stat:
@@ -684,24 +644,12 @@ class SessionService:
         except Exception as e:
             print("WALK_END_ERROR:", e)
             self.db.rollback()
-            return error_response(
-                500, "WALK_END_500_1",
-                "산책을 종료하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.",
-                path
-            )
-
+            return error_response(500, "WALK_END_500_1", "산책을 종료하는 중 오류가 발생했습니다.", path)
 
         # ============================================
-        # 7-2) 산책 종료 알림 생성 (중복 방지 적용)
+        # 8) 알림 생성 (FAMILY 전체)
         # ============================================
         try:
-            family_members = (
-                self.db.query(FamilyMember)
-                .filter(FamilyMember.family_id == pet.family_id)
-                .all()
-            )
-
-            # 🔥 중복 체크: 동일 유저/동일 펫/ACTIVITY_END 알림이 같은 세션에서 이미 생성됐는지 확인
             existing_end = (
                 self.db.query(Notification)
                 .filter(
@@ -709,42 +657,32 @@ class SessionService:
                     Notification.related_pet_id == pet.pet_id,
                     Notification.related_user_id == user.user_id,
                     Notification.type == NotificationType.ACTIVITY_END,
-                    Notification.created_at >= walk.start_time  # 이번 산책 세션 기간 내의 알림만 검사
+                    Notification.created_at >= walk.start_time,
                 )
                 .first()
             )
 
-            if existing_end:
-                print("SKIP: Duplicate ACTIVITY_END notification")
-            else:
-                notifications = [
-                    Notification(
-                        family_id=pet.family_id,
-                        target_user_id=member.user_id,
-                        type=NotificationType.ACTIVITY_END,
-                        title="산책 종료",
-                        message=f"{user.nickname}님이 {pet.name}와 산책을 종료했습니다.",
-                        related_pet_id=pet.pet_id,
-                        related_user_id=user.user_id,
-                    )
-                    for member in family_members
-                ]
-
-                self.db.add_all(notifications)
+            if not existing_end:
+                notif = Notification(
+                    family_id=pet.family_id,
+                    target_user_id=None,
+                    type=NotificationType.ACTIVITY_END,
+                    title="산책 종료",
+                    message=f"{user.nickname}님이 {pet.name}와 산책을 종료했습니다.",
+                    related_pet_id=pet.pet_id,
+                    related_user_id=user.user_id,
+                )
+                self.db.add(notif)
                 self.db.commit()
 
         except Exception as e:
             print("NOTIFICATION_END_ERROR:", e)
             self.db.rollback()
 
-
         # ============================================
-        # 8) 응답 생성
+        # 9) 응답 생성
         # ============================================
-        # route_data 파싱 (JSON 문자열인 경우)
-        route_data_response = None
-        if route_data_dict:
-            route_data_response = route_data_dict
+        route_data_response = route_data_dict if route_data_dict else None
 
         response_content = {
             "success": True,
@@ -753,8 +691,8 @@ class SessionService:
                 "walk_id": updated_walk.walk_id,
                 "pet_id": updated_walk.pet_id,
                 "user_id": updated_walk.user_id,
-                "start_time": updated_walk.start_time.isoformat() if updated_walk.start_time else None,
-                "end_time": updated_walk.end_time.isoformat() if updated_walk.end_time else None,
+                "start_time": updated_walk.start_time.isoformat(),
+                "end_time": updated_walk.end_time.isoformat(),
                 "duration_min": updated_walk.duration_min,
                 "distance_km": float(updated_walk.distance_km) if updated_walk.distance_km else None,
                 "calories": float(updated_walk.calories) if updated_walk.calories else None,
@@ -766,31 +704,16 @@ class SessionService:
             "path": path
         }
 
-        # activity_stats 추가
         if activity_stat:
             response_content["activity_stats"] = {
-                "date": activity_stat.date.isoformat() if activity_stat.date else None,
+                "date": activity_stat.date.isoformat(),
                 "pet_id": activity_stat.pet_id,
                 "total_walks": activity_stat.total_walks,
                 "total_distance_km": float(activity_stat.total_distance_km),
                 "total_duration_min": activity_stat.total_duration_min,
-                "avg_speed_kmh": float(activity_stat.avg_speed_kmh) if activity_stat.avg_speed_kmh else None,
-            }
-        else:
-            # activity_stat이 없으면 기본값 반환
-            kst = pytz.timezone('Asia/Seoul')
-            now_kst = datetime.now(kst)
-            stat_date = now_kst.date()
-            
-            response_content["activity_stats"] = {
-                "date": stat_date.isoformat(),
-                "pet_id": walk.pet_id,
-                "total_walks": 0,
-                "total_distance_km": 0.0,
-                "total_duration_min": 0,
-                "avg_speed_kmh": None,
+                "avg_speed_kmh": float(activity_stat.avg_speed_kmh)
+                if activity_stat.avg_speed_kmh else None,
             }
 
         encoded = jsonable_encoder(response_content)
         return JSONResponse(status_code=200, content=encoded)
-

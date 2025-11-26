@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     DB_NAME: str
     FIREBASE_CREDENTIALS: str
     OPENAI_API_KEY: str
+    OPENWEATHER_API_KEY: str
 
     class Config:
         env_file = ".env"     # 프로젝트 루트에 있는 .env 자동 로딩

@@ -12,11 +12,8 @@ from app.core.error_handler import error_response
 from app.models.user import User
 from app.models.notification_reads import NotificationRead
 
-from app.domains.notifications.repository.notification_repository import (
-    NotificationRepository,
-)
+from app.domains.notifications.repository.notification_repository import NotificationRepository
 from app.schemas.notifications.notification_schema import NotificationListResponse
-
 
 TYPE_LABELS = {
     "REQUEST": "승인 요청",
@@ -40,56 +37,27 @@ class NotificationService:
         self.db = db
         self.repo = NotificationRepository(db)
 
-    def get_notifications(
-        self,
-        request: Request,
-        firebase_token: Optional[str],
-        pet_id: Optional[int],
-        notif_type: Optional[str],
-        page: int,
-        size: int,
-    ):
+    # ============================
+    # 📌 알림 목록
+    # ============================
+    def get_notifications(self, request: Request, firebase_token, pet_id, notif_type, page, size):
         try:
             # 인증
             if not firebase_token:
-                return error_response(
-                    401, "NOTIF_LIST_401_1",
-                    "Authorization 헤더가 필요합니다.",
-                    request.url.path
-                )
+                return error_response(401, "NOTIF_401", "Authorization 필요", request.url.path)
 
             decoded = verify_firebase_token(firebase_token)
             if decoded is None:
-                return error_response(
-                    401, "NOTIF_LIST_401_2",
-                    "유효하지 않거나 만료된 Firebase ID Token입니다.",
-                    request.url.path
-                )
+                return error_response(401, "NOTIF_401_2", "Firebase 토큰 오류", request.url.path)
 
-            firebase_uid = decoded["uid"]
-
-            # 사용자 조회
             user = (
                 self.db.query(User)
-                .filter(User.firebase_uid == firebase_uid)
+                .filter(User.firebase_uid == decoded["uid"])
                 .first()
             )
             if not user:
-                return error_response(
-                    404, "NOTIF_LIST_404_1",
-                    "사용자를 찾을 수 없습니다.",
-                    request.url.path
-                )
+                return error_response(404, "NOTIF_404_1", "사용자 없음", request.url.path)
 
-            # 페이지 검증
-            if page < 0 or size <= 0:
-                return error_response(
-                    400, "NOTIF_LIST_400_2",
-                    "page와 size는 숫자여야 합니다.",
-                    request.url.path
-                )
-
-            # 알림 조회
             items, total = self.repo.get_notifications(
                 user_id=user.user_id,
                 pet_id=pet_id,
@@ -98,26 +66,17 @@ class NotificationService:
                 size=size,
             )
 
-            # 🔥 여기서 현재 유저에게 온 알림만 필터링
-            items = [n for n in items if n.target_user_id == user.user_id]
-
             if items is None and total == "INVALID_TYPE":
-                return error_response(
-                    400, "NOTIF_LIST_400_1",
-                    "알림 타입이 올바르지 않습니다.",
-                    request.url.path
-                )
+                return error_response(400, "NOTIF_400", "알림 타입 오류", request.url.path)
 
             results = []
 
             for notif in items:
                 type_str = notif.type.value
-
-                # sender
                 sender_id = notif.related_user_id
                 is_me = sender_id == user.user_id
 
-                # 읽음 여부
+                # 내가 읽었는지
                 is_read_by_me = (
                     self.db.query(NotificationRead)
                     .filter(
@@ -128,50 +87,33 @@ class NotificationService:
                     is not None
                 )
 
-                # 가족 수
-                family_count = (
-                    self.repo.get_family_member_count(notif.family_id)
-                    if notif.family_id else 1
-                )
-
-                # sender 제외한 진짜 멤버 수
-                effective_members = max(family_count - 1, 0)
-
-                # sender 제외한 읽음 수
+                family_count = self.repo.get_family_member_count(notif.family_id)
                 read_count = self.repo.get_read_count(notif.notification_id)
+                unread_count = max(family_count - read_count, 0)
 
-                # unread 계산
-                unread_count = max(effective_members - read_count, 0)
-
-                # UI 라벨
-                display_type_label = f"[{TYPE_LABELS.get(type_str, type_str)}]"
-                display_time = notif.created_at.strftime("%H:%M")
-
-                results.append(
-                    {
-                        "notification_id": notif.notification_id,
-                        "type": type_str,
-                        "title": notif.title,
-                        "message": notif.message,
-                        "family_id": notif.family_id,
-                        "target_user_id": notif.target_user_id,
-                        "related_pet": notif.related_pet,
-                        "related_user": notif.related_user,
-                        "related_lat": notif.related_lat,
-                        "related_lng": notif.related_lng,
-                        "share_request_id": notif.related_request_id,
-                        "is_read_by_me": is_read_by_me,
-                        "read_count": read_count,
-                        "unread_count": unread_count,
-                        "created_at": notif.created_at,
-                        "display_type_label": display_type_label,
-                        "display_time": display_time,
-                        "display_read_text": f"{read_count}명 읽음",
-                        "sender_profile_img_url": notif.related_user.profile_img_url if notif.related_user else None,
-                        "sender_nickname": notif.related_user.nickname if notif.related_user else None,
-                        "is_me": is_me,
-                    }
-                )
+                results.append({
+                    "notification_id": notif.notification_id,
+                    "type": type_str,
+                    "title": notif.title,
+                    "message": notif.message,
+                    "family_id": notif.family_id,
+                    "target_user_id": notif.target_user_id,
+                    "related_pet": notif.related_pet,
+                    "related_user": notif.related_user,
+                    "related_lat": notif.related_lat,
+                    "related_lng": notif.related_lng,
+                    "share_request_id": notif.related_request_id,
+                    "is_read_by_me": is_read_by_me,
+                    "read_count": read_count,
+                    "unread_count": unread_count,
+                    "created_at": notif.created_at,
+                    "display_type_label": f"[{TYPE_LABELS.get(type_str, type_str)}]",
+                    "display_time": notif.created_at.strftime("%H:%M"),
+                    "display_read_text": f"{read_count}명 읽음",
+                    "sender_profile_img_url": notif.related_user.profile_img_url if notif.related_user else None,
+                    "sender_nickname": notif.related_user.nickname if notif.related_user else None,
+                    "is_me": is_me,
+                })
 
             return NotificationListResponse(
                 success=True,
@@ -187,110 +129,69 @@ class NotificationService:
         except Exception as e:
             print("ERROR IN NotificationService.get_notifications():", e)
             self.db.rollback()
-            return error_response(
-                500, "NOTIF_LIST_500_1",
-                "알림 목록을 조회하는 중 오류가 발생했습니다.",
-                request.url.path
-            )
+            return error_response(500, "NOTIF_500", "알림 조회 오류", request.url.path)
 
     # ============================
-    # 📌 알림 읽음 처리
+    # 📌 읽음 처리
     # ============================
-    def mark_read(
-        self,
-        request: Request,
-        firebase_token: Optional[str],
-        notification_id: int
-    ):
+    def mark_read(self, request, firebase_token, notification_id):
         path = request.url.path
 
-        # 1) 토큰 체크
         if not firebase_token:
-            return error_response(
-                401, "NOTIF_READ_401_1",
-                "Authorization 헤더가 필요합니다.",
-                path
-            )
+            return error_response(401, "NOTIF_READ_401_1", "Authorization 필요", path)
 
         decoded = verify_firebase_token(firebase_token)
         if decoded is None:
-            return error_response(
-                401, "NOTIF_READ_401_2",
-                "유효하지 않거나 만료된 Firebase ID Token입니다.",
-                path
-            )
+            return error_response(401, "NOTIF_READ_401_2", "토큰 오류", path)
 
-        firebase_uid = decoded["uid"]
-
-        # 2) 사용자 검사
         user = (
             self.db.query(User)
-            .filter(User.firebase_uid == firebase_uid)
+            .filter(User.firebase_uid == decoded["uid"])
             .first()
         )
-
         if not user:
-            return error_response(
-                404, "NOTIF_READ_404_1",
-                "사용자를 찾을 수 없습니다.",
-                path
-            )
+            return error_response(404, "NOTIF_READ_404_1", "사용자 없음", path)
 
-        # 3) 알림 조회
         notif = self.repo.get_notification_by_id(notification_id)
         if not notif:
-            return error_response(
-                404, "NOTIF_READ_404_2",
-                "해당 알림을 찾을 수 없습니다.",
-                path
-            )
+            return error_response(404, "NOTIF_READ_404_2", "알림 없음", path)
 
-        # 4) 이미 읽음인지 확인
         existing = (
             self.db.query(NotificationRead)
             .filter(
                 NotificationRead.notification_id == notification_id,
-                NotificationRead.user_id == user.user_id
+                NotificationRead.user_id == user.user_id,
             )
             .first()
         )
-
         if existing:
             return {
                 "success": True,
                 "status": 200,
-                "message": "이미 읽은 알림입니다.",
+                "message": "이미 읽음",
                 "notification_id": notification_id,
                 "timeStamp": datetime.utcnow().isoformat(),
                 "path": path
             }
 
-        # 5) 읽음으로 저장
         try:
             read = NotificationRead(
                 notification_id=notification_id,
                 user_id=user.user_id,
                 read_at=datetime.utcnow(),
             )
-
             self.db.add(read)
             self.db.commit()
-            self.db.refresh(read)
 
         except Exception as e:
             print("NOTIFICATION_READ_ERROR:", e)
             self.db.rollback()
-            return error_response(
-                500, "NOTIF_READ_500_1",
-                "알림 읽음 처리 중 오류가 발생했습니다.",
-                path
-            )
+            return error_response(500, "NOTIF_READ_500_1", "읽음 처리 오류", path)
 
-        # 6) 성공 응답
         return {
             "success": True,
             "status": 200,
-            "message": "알림을 읽음 처리했습니다.",
+            "message": "읽음 처리 완료",
             "notification_id": notification_id,
             "timeStamp": datetime.utcnow().isoformat(),
             "path": path
