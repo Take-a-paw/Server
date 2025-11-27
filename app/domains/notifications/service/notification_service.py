@@ -1,5 +1,3 @@
-# app/domains/notifications/service/notification_service.py
-
 from datetime import datetime
 from fastapi import Request
 from sqlalchemy.orm import Session
@@ -19,7 +17,7 @@ class NotificationService:
         self.repo = NotificationRepository(db)
 
     # ============================
-    # 📌 알림 목록 조회 (Personal only)
+    # 📌 알림 목록 조회
     # ============================
     def get_notifications(self, request, firebase_token, pet_id, notif_type, page, size):
         if not firebase_token:
@@ -33,9 +31,9 @@ class NotificationService:
         if not user:
             return error_response(404, "NOTIF_404_1", "사용자 없음", request.url.path)
 
-        # =============================
-        # DB 조회 (Personal only)
-        # =============================
+        # ----------------------------------
+        # DB 조회
+        # ----------------------------------
         items, total = self.repo.get_notifications(
             user_id=user.user_id,
             pet_id=pet_id,
@@ -49,35 +47,56 @@ class NotificationService:
 
         results = []
 
-        # =============================
-        # 각 알림 처리
-        # =============================
         for notif in items:
 
-            # 내가 보낸 알림인지
+            # ❗ 내가 보낸 알림인지
             is_me = (notif.related_user_id == user.user_id)
 
-            # 읽음 여부
+            # ❗ 내가 읽었는지
             is_read = (
                 self.db.query(NotificationRead)
                 .filter(
                     NotificationRead.notification_id == notif.notification_id,
-                    NotificationRead.user_id == user.user_id,
+                    NotificationRead.user_id == user.user_id
                 )
                 .first() is not None
             )
 
-            # 안읽음이면 읽음 처리
+            # ❗ family 전체 인원수
+            family_count = self.repo.get_family_member_count(notif.family_id)
+
+            # ❗ 이 알림을 읽은 사람 수
+            read_count = self.repo.get_read_count(notif.notification_id)
+
+            # ❗ unread
+            unread_count = family_count - read_count
+
+            # ❗ display_time (오전 3:45 같은 형태로 포맷팅)
+            display_time = notif.created_at.strftime("%p %I:%M").replace("AM", "오전").replace("PM", "오후")
+
+            # ❗ display_type_label
+            display_type_label = f"[{notif.type.value}]"
+
+            # --------------------------------------
+            # 읽음처리 (안읽었으면 기록)
+            # --------------------------------------
             if not is_read:
-                read = NotificationRead(
+                read_obj = NotificationRead(
                     notification_id=notif.notification_id,
                     user_id=user.user_id,
                     read_at=datetime.utcnow()
                 )
-                self.db.add(read)
+                self.db.add(read_obj)
                 self.db.commit()
                 is_read = True
 
+                # 다시 계산
+                read_count += 1
+                unread_count -= 1
+
+            # --------------------------------------
+            # 응답에 넣기
+            # --------------------------------------
             results.append({
                 "notification_id": notif.notification_id,
                 "type": notif.type.value,
@@ -88,8 +107,14 @@ class NotificationService:
                 "related_pet": notif.related_pet,
                 "related_user": notif.related_user,
                 "created_at": notif.created_at,
+
+                # ⭐ 새로운 필드들
                 "is_read_by_me": is_read,
                 "is_me": is_me,
+                "read_count": read_count,
+                "unread_count": unread_count,
+                "display_time": display_time,
+                "display_type_label": display_type_label,
             })
 
         return NotificationListResponse(
@@ -102,6 +127,7 @@ class NotificationService:
             timeStamp=datetime.utcnow().isoformat(),
             path=request.url.path,
         )
+
 
     # ============================
     # 📌 읽음 처리
@@ -121,6 +147,7 @@ class NotificationService:
             .filter(User.firebase_uid == decoded["uid"])
             .first()
         )
+
         if not user:
             return error_response(404, "NOTIF_READ_404_1", "사용자 없음", path)
 
@@ -132,7 +159,7 @@ class NotificationService:
             self.db.query(NotificationRead)
             .filter(
                 NotificationRead.notification_id == notification_id,
-                NotificationRead.user_id == user.user_id,
+                NotificationRead.user_id == user.user_id
             )
             .first()
         )
@@ -147,12 +174,12 @@ class NotificationService:
                 "path": path
             }
 
-        new_row = NotificationRead(
+        new_read = NotificationRead(
             notification_id=notification_id,
             user_id=user.user_id,
-            read_at=datetime.utcnow(),
+            read_at=datetime.utcnow()
         )
-        self.db.add(new_row)
+        self.db.add(new_read)
         self.db.commit()
 
         return {

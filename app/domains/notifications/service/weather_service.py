@@ -160,10 +160,12 @@ class WeatherService:
         if not self.weather_repo.user_in_family(user.user_id, pet.family_id):
             return error_response(403, "W403", "권한 없음", path)
 
+        # 날씨
         weather = self.fetch_weather(body.lat, body.lng)
         if not weather:
             return error_response(502, "W502", "날씨 API 오류", path)
 
+        # 최근 산책(주간)
         weekly_minutes = self.weather_repo.get_weekly_walk_minutes(pet.pet_id)
 
         rec = self.weather_repo.get_recommendation(pet.pet_id)
@@ -173,10 +175,17 @@ class WeatherService:
             "max_minutes": rec.max_minutes if rec else None,
         }
 
-        advice = self.generate_advice(pet, weekly_minutes, rec_info, weather, body.trigger_type)
+        advice = self.generate_advice(
+            pet,
+            weekly_minutes,
+            rec_info,
+            weather,
+            body.trigger_type
+        )
+
         final_message = self.build_message(weather, advice)
 
-        # 개인 알림 저장
+        # ⭐ 개인 알림 생성 (읽음 처리 제외)
         notif = self.notif_repo.create_notification(
             family_id=pet.family_id,
             target_user_id=user.user_id,
@@ -186,19 +195,15 @@ class WeatherService:
             title=advice["title"],
             message=final_message,
         )
+
+        # 알림 생성만 커밋
         self.db.commit()
 
-        # 자동 읽음 처리
-        read = NotificationRead(
-            notification_id=notif.notification_id,
-            user_id=user.user_id
-        )
-        self.db.add(read)
-        self.db.commit()
+        # ⭐ 여기서 자동 읽음 처리 제거됨!
+        # NotificationRead 절대 생성 금지!
+        # 읽음 처리는 반드시 클라이언트의 mark_read()에서 수행
 
-        # ------------------------------------------------------------
-        # ⭐ 공통 스키마 응답
-        # ------------------------------------------------------------
+        # 응답
         return NotificationActionResponse(
             success=True,
             status=200,

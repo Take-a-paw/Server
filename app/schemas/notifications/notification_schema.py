@@ -37,7 +37,7 @@ class NotificationItemSchema(BaseModel):
     message: str
 
     family_id: int
-    target_user_id: Optional[int] = None     # 개인 알림이면 값 있음, broadcast면 None
+    target_user_id: Optional[int] = None  # ⭐ 가족 전체 알림이면 None
 
     related_pet: Optional[RelatedPetSchema] = None
     related_user: Optional[RelatedUserSchema] = None
@@ -54,6 +54,7 @@ class NotificationItemSchema(BaseModel):
 
     class Config:
         from_attributes = True
+
 
 
 # -------------------------

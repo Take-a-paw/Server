@@ -1,5 +1,3 @@
-# app/domains/notifications/repository/notification_repository.py
-
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
@@ -23,7 +21,7 @@ class NotificationRepository:
         page: int,
         size: int
     ):
-        # 1. 사용자가 속한 family_id 목록
+        # 사용자가 속한 family_id 목록
         family_ids = (
             self.db.query(FamilyMember.family_id)
             .filter(FamilyMember.user_id == user_id)
@@ -37,12 +35,12 @@ class NotificationRepository:
                 joinedload(Notification.related_pet),
             )
             .filter(
-                # 개인에게 온 알림
+                # 개인 알림
                 (Notification.target_user_id == user_id)
                 |
-                # 가족 전체에게 온 알림
+                # 가족 공용 알림
                 ((Notification.target_user_id.is_(None)) &
-                (Notification.family_id.in_(family_ids)))
+                 (Notification.family_id.in_(family_ids)))
             )
         )
 
@@ -58,14 +56,13 @@ class NotificationRepository:
             except KeyError:
                 return None, "INVALID_TYPE"
 
-        # 오래된 순으로 정렬 (채팅 스타일)
+        # 채팅 스타일 → 오래된 순
         query = query.order_by(Notification.created_at.asc())
 
         total = query.count()
         items = query.offset(page * size).limit(size).all()
 
         return items, total
-
 
     # ============================
     # 📌 가족 인원수
@@ -96,7 +93,7 @@ class NotificationRepository:
             self.db.query(NotificationRead)
             .filter(
                 NotificationRead.notification_id == notification_id,
-                NotificationRead.user_id == user_id,
+                NotificationRead.user_id == user_id
             )
             .first()
         )
@@ -108,7 +105,6 @@ class NotificationRepository:
             notification_id=notification_id,
             user_id=user_id
         )
-
         self.db.add(new_row)
         self.db.commit()
         return "OK"
@@ -124,7 +120,7 @@ class NotificationRepository:
         )
 
     # ============================
-    # 📌 알림 생성 (family 공용)
+    # 📌 알림 생성
     # ============================
     def create_notification(
         self,
@@ -134,7 +130,7 @@ class NotificationRepository:
         notif_type: NotificationType,
         title: str,
         message: str,
-        target_user_id=None,   # ⭐ 기본값 None → 가족 공용 알림
+        target_user_id=None,   # ⭐ None이면 Broadcast
     ):
         notif = Notification(
             family_id=family_id,
@@ -146,4 +142,14 @@ class NotificationRepository:
             message=message,
         )
         self.db.add(notif)
+        self.db.flush()  # notification_id 확보
+
+        # ⭐ 개인 알림인 경우 즉시 읽음 처리
+        if target_user_id is not None:
+            read = NotificationRead(
+                notification_id=notif.notification_id,
+                user_id=target_user_id
+            )
+            self.db.add(read)
+
         return notif
