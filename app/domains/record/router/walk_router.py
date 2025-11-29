@@ -167,11 +167,12 @@ def get_activity_stats(
 
 @router.get(
     "/recent",
-    summary="최근 활동 조회 (최대 3개)",
-    description="반려동물의 최근 산책 활동을 최대 3개까지 조회합니다.",
+    summary="최근 활동 조회",
+    description="반려동물의 최근 산책 활동을 조회합니다. limit 파라미터로 조회 개수를 지정할 수 있습니다.",
     status_code=200,
     response_model=RecentActivitiesResponse,
     responses={
+        400: {"model": ErrorResponse, "description": "잘못된 요청 (limit 값 오류 등)"},
         401: {"model": ErrorResponse, "description": "인증 실패"},
         403: {"model": ErrorResponse, "description": "권한 없음"},
         404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
@@ -181,6 +182,7 @@ def get_activity_stats(
 def list_recent(
     request: Request,
     pet_id: int = Query(..., description="반려동물 ID"),
+    limit: int = Query(20, description="조회할 최대 개수", ge=1, le=100),
     authorization: Optional[str] = Header(None, description="Firebase ID 토큰"),
     db: Session = Depends(get_db),
 ):
@@ -189,5 +191,5 @@ def list_recent(
         request=request,
         authorization=authorization,
         pet_id=pet_id,
-        limit=3,
+        limit=limit,
     )

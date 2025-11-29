@@ -9,6 +9,7 @@ from app.domains.walk.service.goal_service import GoalService
 from app.domains.walk.service.session_service import SessionService
 from app.domains.walk.service.weather_service import WeatherService
 from app.domains.walk.service.photo_service import PhotoService
+from app.domains.walk.service.walk_recommendation_service import WalkRecommendationService
 from app.schemas.error_schema import ErrorResponse
 from app.schemas.walk.recommendation_schema import RecommendationResponse
 from app.schemas.walk.today_schema import TodayWalkResponse
@@ -16,6 +17,8 @@ from app.schemas.walk.goal_schema import WalkGoalRequest, WalkGoalResponse, Walk
 from app.schemas.walk.session_schema import WalkStartRequest, WalkStartResponse, WalkTrackRequest, WalkTrackResponse, WalkEndRequest, WalkEndResponse
 from app.schemas.walk.weather_schema import WeatherResponse
 from app.schemas.walk.photo_schema import PhotoUploadResponse
+from app.schemas.walk.walk_recommendation_request_schema import WalkRecommendationRequest
+from app.schemas.notifications.common_action_schema import NotificationActionResponse
 
 
 router = APIRouter(
@@ -374,5 +377,41 @@ def upload_walk_photo(
         file=file,
         caption=caption,
         photo_timestamp=photo_timestamp,
+    )
+
+
+@router.post(
+    "/recommendation",
+    summary="산책 추천 멘트 생성",
+    description="펫 정보와 날씨를 바탕으로 OpenAI로 산책 추천 멘트를 생성합니다.",
+    status_code=200,
+    response_model=NotificationActionResponse,
+    responses={
+        400: {"model": ErrorResponse, "description": "잘못된 요청"},
+        401: {"model": ErrorResponse, "description": "인증 실패"},
+        403: {"model": ErrorResponse, "description": "권한 없음"},
+        404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
+        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    },
+)
+def create_walk_recommendation(
+    request: Request,
+    body: WalkRecommendationRequest = ...,
+    authorization: Optional[str] = Header(None, description="Firebase ID 토큰"),
+    db: Session = Depends(get_db),
+):
+    """
+    산책 추천 멘트를 생성합니다.
+    
+    - body: 펫 ID, 위치, 날씨 정보, 오늘 산책 현황
+    - 권한 체크: 해당 반려동물의 family_members에 속한 사용자만 가능
+    - 날씨 정보가 없으면 위치 기반으로 자동 조회
+    - OpenAI를 사용하여 개인화된 추천 멘트 생성
+    """
+    service = WalkRecommendationService(db)
+    return service.generate_recommendation(
+        request=request,
+        authorization=authorization,
+        body=body,
     )
 
