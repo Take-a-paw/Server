@@ -4,3 +4,6 @@ venv/
 
 # 테스트용 스크립트 (개인 개발용)
 scripts/
+
+__pycache__/
+*.pyc
