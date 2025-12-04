@@ -53,6 +53,7 @@ class WalkDetail(BaseModel):
     calories: Optional[float] = Field(None, description="소모 칼로리")
     weather_status: Optional[str] = Field(None, description="날씨 상태")
     weather_temp_c: Optional[float] = Field(None, description="기온 (℃)")
+    thumbnail_image_url: Optional[str] = Field(None, description="대표 이미지 URL")
     route_data: Optional[RouteData] = Field(None, description="경로 데이터")
     points: Optional[List[TrackPoint]] = Field(None, description="산책 위치 포인트 목록")
     photos: List[PhotoItem] = Field(default_factory=list, description="사진 목록")

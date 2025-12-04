@@ -12,6 +12,7 @@ from app.models.user import User
 from app.models.pet import Pet
 from app.models.family_member import FamilyMember
 from app.models.walk import Walk
+from app.models.photo import Photo
 from app.models.walk_tracking_point import WalkTrackingPoint
 from app.schemas.walk.walk_save_schema import WalkSaveRequest
 from app.domains.walk.repository.session_repository import SessionRepository
@@ -151,6 +152,7 @@ class WalkSaveService:
         # ============================================
         # 5) Walk 저장
         # ============================================
+        thumbnail_url = None
         try:
             walk = Walk(
                 pet_id=body.pet_id,
@@ -163,14 +165,19 @@ class WalkSaveService:
                 weather_status=body.weather_status,
                 weather_temp_c=body.weather_temp_c,
             )
-            
-            # thumbnail_image_url은 모델에 필드가 없으면 일단 저장하지 않음
-            # 나중에 모델에 추가하면 활성화
-            # if body.thumbnail_image_url:
-            #     walk.thumbnail_image_url = body.thumbnail_image_url
-            
+
             self.db.add(walk)
             self.db.flush()  # walk_id 확보
+
+            if body.thumbnail_image_url:
+                photo = Photo(
+                    walk_id=walk.walk_id,
+                    image_url=body.thumbnail_image_url,
+                    uploaded_by=user.user_id,
+                    caption=None,
+                )
+                self.db.add(photo)
+                thumbnail_url = body.thumbnail_image_url
             
             # 경로 포인트 저장
             if body.route_points:
@@ -224,7 +231,7 @@ class WalkSaveService:
                 "calories": float(walk.calories) if walk.calories is not None else None,
                 "weather_status": walk.weather_status,
                 "weather_temp_c": float(walk.weather_temp_c) if walk.weather_temp_c is not None else None,
-                "thumbnail_image_url": body.thumbnail_image_url,  # 요청에서 받은 값 반환
+                "thumbnail_image_url": thumbnail_url,
             },
             "timeStamp": datetime.utcnow().isoformat(),
             "path": path

@@ -67,6 +67,15 @@ class RecordWalkRepository:
             .all()
         )
 
+    def get_thumbnail_url(self, walk_id: int) -> Optional[str]:
+        photo = (
+            self.db.query(Photo)
+            .filter(Photo.walk_id == walk_id)
+            .order_by(Photo.created_at.asc())
+            .first()
+        )
+        return photo.image_url if photo else None
+
     def list_recent_activities(self, pet_id: int, limit: int = 3) -> List[tuple]:
         return (
             self.db.query(Walk, User)

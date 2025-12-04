@@ -78,6 +78,7 @@ class RecentActivityService:
 
         activities = []
         for walk, walker in rows:
+            thumbnail_url = self.repo.get_thumbnail_url(walk.walk_id)
             activities.append({
                 "walk_id": walk.walk_id,
                 "date": walk.start_time.date().isoformat() if walk.start_time else None,
@@ -91,6 +92,7 @@ class RecentActivityService:
                 },
                 "weather_status": walk.weather_status,
                 "weather_temp_c": float(walk.weather_temp_c) if walk.weather_temp_c is not None else None,
+                "thumbnail_image_url": thumbnail_url,
             })
 
         response_content = {

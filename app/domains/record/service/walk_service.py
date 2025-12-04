@@ -107,6 +107,7 @@ class RecordWalkService:
         # 8) 응답
         items = []
         for w in walks:
+            thumbnail_url = self.repo.get_thumbnail_url(w.walk_id)
             items.append({
                 "walk_id": w.walk_id,
                 "pet_id": w.pet_id,
@@ -118,6 +119,7 @@ class RecordWalkService:
                 "calories": float(w.calories) if w.calories is not None else None,
                 "weather_status": w.weather_status,
                 "weather_temp_c": float(w.weather_temp_c) if w.weather_temp_c is not None else None,
+                "thumbnail_image_url": thumbnail_url,
             })
 
         response_content = {

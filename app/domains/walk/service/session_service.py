@@ -244,6 +244,7 @@ class SessionService:
                 "calories": float(walk.calories) if walk.calories else None,
                 "weather_status": walk.weather_status,
                 "weather_temp_c": float(walk.weather_temp_c) if walk.weather_temp_c else None,
+                "thumbnail_image_url": None,
                 "created_at": walk.created_at.isoformat() if walk.created_at else None,
             },
             "timeStamp": datetime.utcnow().isoformat(),

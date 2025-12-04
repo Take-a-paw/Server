@@ -95,6 +95,7 @@ class RecordWalkDetailService:
 
         # route_data는 현재 Walk 모델에 별도 저장소가 없으므로 None 처리 또는 확장 여지
         route_data = None
+        thumbnail_url = photos[0].image_url if photos else None
 
         # 7) 응답 구성
         response_content = {
@@ -121,6 +122,7 @@ class RecordWalkDetailService:
                 "calories": float(walk.calories) if walk.calories is not None else None,
                 "weather_status": walk.weather_status,
                 "weather_temp_c": float(walk.weather_temp_c) if walk.weather_temp_c is not None else None,
+                "thumbnail_image_url": thumbnail_url,
                 "route_data": route_data,
                 "points": [
                     {

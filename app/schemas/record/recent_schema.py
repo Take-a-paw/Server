@@ -19,6 +19,7 @@ class RecentActivityItem(BaseModel):
     walker: WalkerBrief = Field(..., description="산책한 사용자 정보")
     weather_status: Optional[str] = Field(None, description="날씨 상태")
     weather_temp_c: Optional[float] = Field(None, description="기온 (℃)")
+    thumbnail_image_url: Optional[str] = Field(None, description="대표 이미지 URL")
 
 
 class RecentActivitiesResponse(BaseModel):

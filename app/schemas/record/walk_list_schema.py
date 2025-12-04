@@ -14,6 +14,7 @@ class WalkItem(BaseModel):
     calories: Optional[float] = Field(None, description="소모 칼로리")
     weather_status: Optional[str] = Field(None, description="날씨 상태")
     weather_temp_c: Optional[float] = Field(None, description="기온 (℃)")
+    thumbnail_image_url: Optional[str] = Field(None, description="대표 이미지 URL")
 
 
 class WalkListResponse(BaseModel):
