@@ -1,8 +1,9 @@
 import firebase_admin
-from firebase_admin import credentials, auth, storage
+from firebase_admin import credentials, auth, storage, messaging
 from app.core.config import settings
 import os
 from datetime import datetime
+from typing import Optional, Dict, Any
 
 # Firebase Credential 파일 경로 로드
 print(f"[INFO] Loading Firebase credentials from: {settings.FIREBASE_CREDENTIALS}")
@@ -78,3 +79,129 @@ def upload_file_to_storage(
     except Exception as e:
         print(f"STORAGE_UPLOAD_ERROR: {e}")
         raise Exception("STORAGE_UPLOAD_FAILED")
+
+
+def send_push_notification(
+    fcm_token: str,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> bool:
+    """
+    FCM 푸시 알림을 전송합니다.
+    
+    Args:
+        fcm_token: 수신자의 FCM 토큰
+        title: 알림 제목
+        body: 알림 본문
+        data: 추가 데이터 (선택사항)
+    
+    Returns:
+        bool: 전송 성공 여부
+    """
+    try:
+        # 알림 메시지 구성
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data={k: str(v) for k, v in (data or {}).items()},  # FCM data는 문자열만 허용
+            token=fcm_token,
+            # Android 전용 설정
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    icon="ic_notification",
+                    color="#FF6B6B",
+                    sound="default",
+                    click_action="OPEN_NOTIFICATION",
+                ),
+            ),
+        )
+        
+        # 메시지 전송
+        response = messaging.send(message)
+        print(f"[FCM] Successfully sent message: {response}")
+        return True
+        
+    except messaging.UnregisteredError:
+        # 토큰이 더 이상 유효하지 않음 (앱 삭제 등)
+        print(f"[FCM] Token is no longer valid: {fcm_token[:20]}...")
+        return False
+        
+    except Exception as e:
+        print(f"[FCM] Error sending message: {e}")
+        return False
+
+
+def send_push_notification_to_multiple(
+    fcm_tokens: list,
+    title: str,
+    body: str,
+    data: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    여러 사용자에게 FCM 푸시 알림을 전송합니다.
+    
+    Args:
+        fcm_tokens: 수신자들의 FCM 토큰 리스트
+        title: 알림 제목
+        body: 알림 본문
+        data: 추가 데이터 (선택사항)
+    
+    Returns:
+        Dict: 전송 결과 (success_count, failure_count, failed_tokens)
+    """
+    if not fcm_tokens:
+        return {"success_count": 0, "failure_count": 0, "failed_tokens": []}
+    
+    # 유효한 토큰만 필터링
+    valid_tokens = [t for t in fcm_tokens if t]
+    if not valid_tokens:
+        return {"success_count": 0, "failure_count": 0, "failed_tokens": []}
+    
+    try:
+        # MulticastMessage 구성
+        message = messaging.MulticastMessage(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            data={k: str(v) for k, v in (data or {}).items()},
+            tokens=valid_tokens,
+            android=messaging.AndroidConfig(
+                priority="high",
+                notification=messaging.AndroidNotification(
+                    icon="ic_notification",
+                    color="#FF6B6B",
+                    sound="default",
+                    click_action="OPEN_NOTIFICATION",
+                ),
+            ),
+        )
+        
+        # 메시지 전송
+        response = messaging.send_each_for_multicast(message)
+        
+        # 실패한 토큰 수집
+        failed_tokens = []
+        for idx, send_response in enumerate(response.responses):
+            if not send_response.success:
+                failed_tokens.append(valid_tokens[idx])
+        
+        print(f"[FCM] Multicast result: {response.success_count} success, {response.failure_count} failures")
+        
+        return {
+            "success_count": response.success_count,
+            "failure_count": response.failure_count,
+            "failed_tokens": failed_tokens,
+        }
+        
+    except Exception as e:
+        print(f"[FCM] Error sending multicast: {e}")
+        return {
+            "success_count": 0,
+            "failure_count": len(valid_tokens),
+            "failed_tokens": valid_tokens,
+        }
