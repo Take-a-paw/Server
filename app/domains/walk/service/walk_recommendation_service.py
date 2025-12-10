@@ -192,7 +192,8 @@ class WalkRecommendationService:
             target_user_id=user.user_id,  # 개인 알림
             related_pet_id=pet.pet_id,
             related_user_id=user.user_id,
-            notif_type=NotificationType.SYSTEM_WEATHER,  # 기존 타입 재사용
+            # 산책 추천을 날씨 추천과 구분하기 위해 SYSTEM_REMINDER 타입 사용
+            notif_type=NotificationType.SYSTEM_REMINDER,
             title=advice["title"],
             message=advice["message"],
         )
@@ -204,7 +205,7 @@ class WalkRecommendationService:
             status=200,
             notification=NotificationActionItem(
                 notification_id=notif.notification_id,
-                type="WALK_RECOMMENDATION",
+                type=notif.type.value,
                 title=notif.title,
                 message=notif.message,
                 family_id=pet.family_id,

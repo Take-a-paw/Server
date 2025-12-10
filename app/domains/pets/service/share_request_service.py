@@ -190,6 +190,10 @@ class PetShareRequestService:
         if req.status != RequestStatus.PENDING:
             return error_response(409, "PET_SHARE_APPROVE_409_1", "이미 처리됨", path)
 
+        # 6-1) 이미 가족 구성원이라면 중복 승인 불가
+        if self.family_repo.is_member(req.requester_id, pet.family_id):
+            return error_response(409, "PET_SHARE_APPROVE_409_2", "이미 가족 구성원입니다.", path)
+
         # 7) 승인 처리
         try:
             req.status = new_status
@@ -197,9 +201,18 @@ class PetShareRequestService:
 
             created_member = None
             if new_status == RequestStatus.APPROVED:
-                created_member = self.family_repo.create_member(
-                    family_id=pet.family_id,
-                    user_id=req.requester_id
+                # 이미 멤버가 아니라는 전제이지만, 혹시 모를 중복 생성 방지
+                if not self.family_repo.is_member(req.requester_id, pet.family_id):
+                    created_member = self.family_repo.create_member(
+                        family_id=pet.family_id,
+                        user_id=req.requester_id
+                    )
+
+                # 동일 사용자/펫의 다른 Pending 요청은 모두 거절 처리
+                self.share_repo.reject_other_pending(
+                    pet_id=pet.pet_id,
+                    requester_id=req.requester_id,
+                    exclude_request_id=req.request_id,
                 )
 
             self.db.commit()
