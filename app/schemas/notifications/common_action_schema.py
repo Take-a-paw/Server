@@ -25,3 +25,4 @@ class NotificationActionResponse(BaseModel):
     notification: NotificationActionItem
     timeStamp: str
     path: str
+

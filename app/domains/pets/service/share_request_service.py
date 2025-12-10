@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
 
-from app.core.firebase import verify_firebase_token
+from app.core.firebase import verify_firebase_token, send_push_notification_to_multiple
 from app.core.error_handler import error_response
 from app.models.user import User
 from app.models.pet import Pet
@@ -83,8 +83,10 @@ class PetShareRequestService:
             self.db.rollback()
             return error_response(500, "PET_SHARE_500_1", "요청 생성 중 오류가 발생했습니다.", path)
 
-        # 7️⃣ Owner + 기존 Family Member 에게 알림 생성
+        # 7️⃣ Owner + 기존 Family Member 에게 알림 생성 + FCM 푸시 발송
         family_members = self.family_repo.get_members(pet.family_id)
+        fcm_tokens = []  # FCM 푸시 대상 토큰 수집
+        
         for m in family_members:
             self._create_notification(
                 family_id=pet.family_id,
@@ -95,6 +97,25 @@ class PetShareRequestService:
                 pet_id=pet.pet_id,
                 user_id=user.user_id,
                 request_id=req.request_id,
+            )
+            # FCM 토큰 수집
+            target_user = self.db.get(User, m.user_id)
+            if target_user and target_user.fcm_token:
+                fcm_tokens.append(target_user.fcm_token)
+        
+        # 8️⃣ FCM 푸시 알림 발송
+        if fcm_tokens:
+            self._send_fcm_push(
+                fcm_tokens=fcm_tokens,
+                title="🐾 반려동물 공유 요청",
+                body=f"{user.nickname}님이 {pet.name} 공유를 요청했습니다.",
+                data={
+                    "type": "SHARE_REQUEST",
+                    "request_id": req.request_id,
+                    "pet_id": pet.pet_id,
+                    "pet_name": pet.name or "",
+                    "requester_nickname": user.nickname or "",
+                },
             )
 
         # 응답
@@ -187,7 +208,7 @@ class PetShareRequestService:
             self.db.rollback()
             return error_response(500, "PET_SHARE_APPROVE_500_1", "처리 중 오류", path)
 
-        # 8️⃣ 결과 알림 (기존 Family Member + Owner → 모두 받음, 신청자는 제외)
+        # 8️⃣ 결과 알림 (기존 Family Member + Owner → 모두 받음)
         family_members = self.family_repo.get_members(pet.family_id)
 
         notif_type = (
@@ -201,6 +222,8 @@ class PetShareRequestService:
             else f"{pet.name} 공유 요청이 거절되었습니다."
         )
 
+        fcm_tokens = []  # FCM 푸시 대상 토큰 수집
+        
         for m in family_members:
             self._create_notification(
                 family_id=pet.family_id,
@@ -211,6 +234,36 @@ class PetShareRequestService:
                 pet_id=pet.pet_id,
                 user_id=user.user_id,
                 request_id=req.request_id,
+            )
+            # FCM 토큰 수집
+            target_user = self.db.get(User, m.user_id)
+            if target_user and target_user.fcm_token:
+                fcm_tokens.append(target_user.fcm_token)
+
+        # 9️⃣ 신청자에게도 FCM 푸시 알림 발송
+        requester = self.db.get(User, req.requester_id)
+        if requester and requester.fcm_token:
+            fcm_tokens.append(requester.fcm_token)
+
+        # 🔟 FCM 푸시 알림 발송
+        if fcm_tokens:
+            push_title = "🎉 공유 요청 승인됨" if new_status == RequestStatus.APPROVED else "❌ 공유 요청 거절됨"
+            push_body = (
+                f"{pet.name}의 가족이 되었습니다!"
+                if new_status == RequestStatus.APPROVED
+                else f"{pet.name} 공유 요청이 거절되었습니다."
+            )
+            self._send_fcm_push(
+                fcm_tokens=fcm_tokens,
+                title=push_title,
+                body=push_body,
+                data={
+                    "type": "SHARE_RESPONSE",
+                    "request_id": req.request_id,
+                    "pet_id": pet.pet_id,
+                    "pet_name": pet.name or "",
+                    "status": new_status.value,
+                },
             )
 
         # 응답
@@ -262,6 +315,25 @@ class PetShareRequestService:
         except Exception as e:
             print("NOTIFICATION_ERROR:", e)
             self.db.rollback()
+
+    def _send_fcm_push(
+        self,
+        fcm_tokens: list,
+        title: str,
+        body: str,
+        data: Optional[dict] = None,
+    ):
+        """FCM 푸시 알림을 전송합니다."""
+        try:
+            result = send_push_notification_to_multiple(
+                fcm_tokens=fcm_tokens,
+                title=title,
+                body=body,
+                data=data,
+            )
+            print(f"[FCM] Push sent: success={result['success_count']}, failure={result['failure_count']}")
+        except Exception as e:
+            print(f"[FCM] Push error: {e}")
 
     def get_my_requests(
         self,

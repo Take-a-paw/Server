@@ -141,3 +141,57 @@ class UserService:
             status=200,
             user=updated_schema
         )
+
+    @staticmethod
+    def update_fcm_token(
+        request: Request,
+        authorization: Optional[str],
+        fcm_token: str,
+        db: Session,
+    ):
+        """FCM 푸시 알림 토큰을 업데이트합니다."""
+        path = request.url.path
+
+        # 1) Authorization 헤더 확인
+        if authorization is None:
+            return error_response(401, "FCM_401_1", "Authorization 헤더가 필요합니다.", path)
+
+        if not authorization.startswith("Bearer "):
+            return error_response(401, "FCM_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
+
+        parts = authorization.split(" ")
+        if len(parts) != 2:
+            return error_response(401, "FCM_401_3", "Authorization 헤더 형식이 잘못되었습니다.", path)
+
+        id_token = parts[1]
+
+        # 2) Firebase 검증
+        decoded = verify_firebase_token(id_token)
+        if decoded is None:
+            return error_response(401, "FCM_401_4", "유효하지 않거나 만료된 Firebase ID Token입니다.", path)
+
+        firebase_uid = decoded.get("uid")
+
+        # 3) DB user 조회
+        repo = UserRepository(db)
+        user = repo.get_user_by_firebase_uid(firebase_uid)
+
+        if user is None:
+            return error_response(404, "FCM_404_1", "해당 사용자를 찾을 수 없습니다.", path)
+
+        # 4) FCM 토큰 업데이트
+        try:
+            user.fcm_token = fcm_token
+            db.commit()
+            db.refresh(user)
+            print(f"[INFO] FCM token updated for user {user.user_id}: {fcm_token[:20]}...")
+        except Exception as e:
+            print(f"[ERROR] FCM token update failed: {e}")
+            db.rollback()
+            return error_response(500, "FCM_500_1", "FCM 토큰 업데이트 중 오류가 발생했습니다.", path)
+
+        return {
+            "success": True,
+            "status": 200,
+            "message": "FCM 토큰이 성공적으로 업데이트되었습니다."
+        }

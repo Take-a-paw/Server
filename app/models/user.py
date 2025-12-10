@@ -23,6 +23,9 @@ class User(Base):
 
     profile_img_url = Column(String(255), nullable=True)
 
+    # FCM 푸시 알림 토큰
+    fcm_token = Column(String(255), nullable=True)
+
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
 
