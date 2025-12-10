@@ -8,7 +8,6 @@ from app.domains.walk.service.walk_recommendation_service import WalkRecommendat
 from app.schemas.error_schema import ErrorResponse
 from app.schemas.walk.recommendation_schema import RecommendationResponse
 from app.schemas.walk.walk_recommendation_request_schema import WalkRecommendationRequest
-from app.schemas.notifications.common_action_schema import NotificationActionResponse
 
 
 router = APIRouter(
@@ -55,7 +54,7 @@ def get_recommendation(
     summary="산책 추천 멘트 생성",
     description="펫 정보와 날씨를 바탕으로 OpenAI로 산책 추천 멘트를 생성합니다.",
     status_code=200,
-    response_model=NotificationActionResponse,
+    response_model=RecommendationResponse,
     responses={
         400: {"model": ErrorResponse, "description": "잘못된 요청"},
         401: {"model": ErrorResponse, "description": "인증 실패"},

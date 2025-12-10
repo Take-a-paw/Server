@@ -9,7 +9,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.firebase import verify_firebase_token
+from app.core.firebase import verify_firebase_token, send_push_notification_to_multiple
 from app.core.error_handler import error_response
 
 from app.models.user import User
@@ -393,6 +393,21 @@ class PetModifyService:
         # 🔥 연관 데이터 전체 삭제 (FK 순서 완벽 보장)
         # ---------------------------------------------------
         try:
+            # 삭제 전에 가족 멤버 및 FCM 토큰 수집 (OWNER는 제외)
+            family_members = (
+                self.db.query(FamilyMember)
+                .filter(FamilyMember.family_id == family_id)
+                .all()
+            )
+            member_user_ids = [m.user_id for m in family_members if m.user_id != user.user_id]
+
+            users = (
+                self.db.query(User)
+                .filter(User.user_id.in_(member_user_ids))
+                .all()
+            ) if member_user_ids else []
+            fcm_tokens = [u.fcm_token for u in users if u and u.fcm_token]
+
             # 1️⃣ WalkTrackingPoint 삭제
             walk_ids = self.db.query(Walk.walk_id).filter(Walk.pet_id == pet_id).all()
             walk_ids = [w[0] for w in walk_ids]
@@ -487,6 +502,22 @@ class PetModifyService:
 
             # Commit
             self.db.commit()
+            # 🔔 FCM 푸시: 가족 전원에게 펫 삭제 알림 (OWNER는 제외)
+            if fcm_tokens:
+                try:
+                    send_push_notification_to_multiple(
+                        fcm_tokens=fcm_tokens,
+                        title="🐾 반려동물 삭제",
+                        body=f"{pet_name}가 삭제되었습니다.",
+                        data={
+                            "type": "PET_DELETED",
+                            "pet_id": str(pet_id),
+                            "family_id": str(family_id),
+                            "pet_name": pet_name or ""
+                        },
+                    )
+                except Exception as e:
+                    print("FCM PET_DELETE ERROR:", e)
 
         except Exception as e:
             print("PET DELETE ERROR:", e)
