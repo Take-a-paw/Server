@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.domains.auth.router.auth_router import router as auth_router
 from app.domains.pets.router.register_router import router as pet_register_router
 from app.domains.pets.router.share_request_router import router as pet_share_router
@@ -36,6 +37,15 @@ def create_app() -> FastAPI:
             {"name": "Walk", "description": "산책 기록 API"},
             {"name": "Family", "description": "가족 그룹 관리 API"},
         ]
+    )
+
+    # CORS (모바일·웹 클라이언트 허용)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],          # 필요 시 도메인으로 제한
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     # 🟢 라우터 등록
