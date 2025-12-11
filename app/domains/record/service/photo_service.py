@@ -7,7 +7,7 @@ from datetime import datetime
 import pytz
 
 from app.core.firebase import verify_firebase_token
-from app.core.error_handler import error_response
+from app.domains.record.exception import record_error
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.family_member import FamilyMember
@@ -33,21 +33,21 @@ class RecordPhotoService:
 
         # 1) Authorization 검증
         if authorization is None:
-            return error_response(401, "PHOTO_LIST_401_1", "Authorization 헤더가 필요합니다.", path)
+            return record_error("PHOTO_LIST_401_1", path)
         if not authorization.startswith("Bearer "):
-            return error_response(401, "PHOTO_LIST_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
+            return record_error("PHOTO_LIST_401_2", path)
         parts = authorization.split(" ")
         if len(parts) != 2:
-            return error_response(401, "PHOTO_LIST_401_2", "Authorization 헤더 형식이 잘못되었습니다.", path)
+            return record_error("PHOTO_LIST_401_2", path)
         decoded = verify_firebase_token(parts[1])
         if decoded is None:
-            return error_response(401, "PHOTO_LIST_401_2", "유효하지 않거나 만료된 Firebase ID Token입니다. 다시 로그인해주세요.", path)
+            return record_error("PHOTO_LIST_401_2", path)
 
         firebase_uid = decoded.get("uid")
 
         # 2) pet_id 필수
         if pet_id is None:
-            return error_response(400, "PHOTO_LIST_404_2", "요청하신 반려동물을 찾을 수 없습니다.", path)
+            return record_error("PHOTO_LIST_400_3", path)
 
         # 3) 사용자/반려동물/권한 체크
         user: User = (
@@ -56,7 +56,7 @@ class RecordPhotoService:
             .first()
         )
         if not user:
-            return error_response(404, "PHOTO_LIST_404_1", "해당 사용자를 찾을 수 없습니다.", path)
+            return record_error("PHOTO_LIST_404_1", path)
 
         pet: Pet = (
             self.db.query(Pet)
@@ -64,7 +64,7 @@ class RecordPhotoService:
             .first()
         )
         if not pet:
-            return error_response(404, "PHOTO_LIST_404_2", "요청하신 반려동물을 찾을 수 없습니다.", path)
+            return record_error("PHOTO_LIST_404_2", path)
 
         family_member: FamilyMember = (
             self.db.query(FamilyMember)
@@ -75,7 +75,7 @@ class RecordPhotoService:
             .first()
         )
         if not family_member:
-            return error_response(403, "PHOTO_LIST_403_1", "해당 반려동물의 사진첩을 조회할 권한이 없습니다.", path)
+            return record_error("PHOTO_LIST_403_1", path)
 
         # 4) 날짜 파싱 및 페이지 파라미터 처리
         start_dt_utc = None
@@ -89,9 +89,9 @@ class RecordPhotoService:
                 ed = datetime.strptime(end_date, "%Y-%m-%d")
                 end_dt_utc = kst.localize(ed.replace(hour=23, minute=59, second=59, microsecond=999999)).astimezone(pytz.UTC)
             if start_dt_utc and end_dt_utc and start_dt_utc > end_dt_utc:
-                return error_response(400, "PHOTO_LIST_400_2", "start_date는 end_date보다 이후일 수 없습니다.", path)
+                return record_error("PHOTO_LIST_400_2", path)
         except ValueError:
-            return error_response(400, "PHOTO_LIST_400_1", "start_date와 end_date는 'YYYY-MM-DD' 형식이어야 합니다.", path)
+            return record_error("PHOTO_LIST_400_1", path)
 
         page = page if page is not None and page >= 0 else 0
         size = size if size is not None and 1 <= size <= 100 else 20
@@ -107,7 +107,7 @@ class RecordPhotoService:
             )
         except Exception as e:
             print("PHOTO_LIST_QUERY_ERROR:", e)
-            return error_response(500, "PHOTO_LIST_500_1", "사진첩을 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", path)
+            return record_error("PHOTO_LIST_500_1", path)
 
         # 6) 응답 변환
         items = []

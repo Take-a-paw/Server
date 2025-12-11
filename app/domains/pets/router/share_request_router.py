@@ -3,7 +3,6 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.db import get_db
-from app.schemas.error_schema import ErrorResponse
 from app.schemas.pets.pet_share_request_schema import (
     PetShareRequestResponse,
     PetShareApproveRequest,
@@ -12,6 +11,12 @@ from app.schemas.pets.pet_share_request_schema import (
     ReceivedShareRequestListResponse
 )
 from app.domains.pets.service.share_request_service import PetShareRequestService
+from app.domains.pets.exception import (
+    PET_SHARE_CREATE_RESPONSES,
+    PET_SHARE_APPROVE_RESPONSES,
+    PET_SHARE_LIST_RESPONSES,
+    PET_RECEIVED_LIST_RESPONSES,
+)
 
 router = APIRouter(
     prefix="/api/v1/pets",
@@ -27,14 +32,7 @@ router = APIRouter(
     description="초대코드를 사용하여 반려동물 공유 요청을 생성합니다.",
     status_code=201,
     response_model=PetShareRequestResponse,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        409: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
+    responses=PET_SHARE_CREATE_RESPONSES,
 )
 def create_pet_share_request(
     pet_search_id: str,
@@ -64,14 +62,7 @@ def create_pet_share_request(
     description="반려동물 공유 요청을 승인하거나 거절합니다.",
     status_code=200,
     response_model=PetShareApproveResponse,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        403: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        409: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    },
+    responses=PET_SHARE_APPROVE_RESPONSES,
 )
 def approve_pet_share_request(
     request: Request,
@@ -101,12 +92,7 @@ def approve_pet_share_request(
     summary="내가 보낸 공유 요청 리스트 조회",
     description="로그인한 사용자가 보낸 반려동물 공유 요청 목록을 조회합니다.",
     response_model=MyShareRequestListResponse,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    }
+    responses=PET_SHARE_LIST_RESPONSES
 )
 def get_my_share_requests(
     request: Request,
@@ -134,12 +120,7 @@ def get_my_share_requests(
     summary="내가 받은 공유 요청 리스트 조회",
     description="로그인한 사용자가 owner인 pet들에 대해 받은 공유 요청 목록을 조회합니다.",
     response_model=ReceivedShareRequestListResponse,
-    responses={
-        400: {"model": ErrorResponse},
-        401: {"model": ErrorResponse},
-        404: {"model": ErrorResponse},
-        500: {"model": ErrorResponse},
-    }
+    responses=PET_RECEIVED_LIST_RESPONSES
 )
 def get_received_share_requests(
     request: Request,

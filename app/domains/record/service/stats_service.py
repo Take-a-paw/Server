@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import pytz
 
 from app.core.firebase import verify_firebase_token
-from app.core.error_handler import error_response
+from app.domains.record.exception import record_error
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.family_member import FamilyMember
@@ -93,21 +93,21 @@ class ActivityStatsService:
 
         # 1) Authorization
         if authorization is None:
-            return error_response(401, "ACTIVITY_401_1", "Authorization 헤더가 필요합니다.", path)
+            return record_error("ACTIVITY_401_1", path)
         if not authorization.startswith("Bearer "):
-            return error_response(401, "ACTIVITY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
+            return record_error("ACTIVITY_401_2", path)
         parts = authorization.split(" ")
         if len(parts) != 2:
-            return error_response(401, "ACTIVITY_401_2", "Authorization 헤더 형식이 잘못되었습니다.", path)
+            return record_error("ACTIVITY_401_2", path)
         decoded = verify_firebase_token(parts[1])
         if decoded is None:
-            return error_response(401, "ACTIVITY_401_2", "유효하지 않거나 만료된 Firebase ID Token입니다. 다시 로그인해주세요.", path)
+            return record_error("ACTIVITY_401_2", path)
 
         # 2) Required params
         if pet_id is None:
-            return error_response(400, "ACTIVITY_400_1", "pet_id 쿼리 파라미터는 필수입니다.", path)
+            return record_error("ACTIVITY_400_1", path)
         if period is None or period not in ["day", "week", "month", "all"]:
-            return error_response(400, "ACTIVITY_400_2", "period는 'day', 'week', 'month', 'all' 중 하나여야 합니다.", path)
+            return record_error("ACTIVITY_400_2", path)
 
         # 3) User and permission
         firebase_uid = decoded.get("uid")
@@ -117,7 +117,7 @@ class ActivityStatsService:
             .first()
         )
         if not user:
-            return error_response(404, "ACTIVITY_404_1", "해당 사용자를 찾을 수 없습니다.", path)
+            return record_error("ACTIVITY_404_1", path)
 
         pet: Pet = (
             self.db.query(Pet)
@@ -125,7 +125,7 @@ class ActivityStatsService:
             .first()
         )
         if not pet:
-            return error_response(404, "ACTIVITY_404_2", "요청하신 반려동물을 찾을 수 없습니다.", path)
+            return record_error("ACTIVITY_404_2", path)
 
         fm: FamilyMember = (
             self.db.query(FamilyMember)
@@ -133,7 +133,7 @@ class ActivityStatsService:
             .first()
         )
         if not fm:
-            return error_response(403, "ACTIVITY_403_1", "해당 반려동물의 활동 기록을 조회할 권한이 없습니다.", path)
+            return record_error("ACTIVITY_403_1", path)
 
         # 4) Date range
         try:
@@ -141,20 +141,20 @@ class ActivityStatsService:
         except ValueError as e:
             msg = str(e)
             if msg == "PERIOD":
-                return error_response(400, "ACTIVITY_400_2", "period는 'day', 'week', 'month', 'all' 중 하나여야 합니다.", path)
+                return record_error("ACTIVITY_400_2", path)
             elif msg == "RANGE":
-                return error_response(400, "ACTIVITY_400_4", "start_date는 end_date보다 이후일 수 없습니다.", path)
+                return record_error("ACTIVITY_400_4", path)
             else:
-                return error_response(400, "ACTIVITY_400_3", "date, start_date, end_date는 'YYYY-MM-DD' 형식이어야 합니다.", path)
+                return record_error("ACTIVITY_400_3", path)
         except Exception:
-            return error_response(400, "ACTIVITY_400_3", "date, start_date, end_date는 'YYYY-MM-DD' 형식이어야 합니다.", path)
+            return record_error("ACTIVITY_400_3", path)
 
         # 5) Aggregate
         try:
             daily = self.repo.aggregate_daily(pet_id, start_utc, end_utc)
         except Exception as e:
             print("ACTIVITY_AGG_ERROR:", e)
-            return error_response(500, "ACTIVITY_500_1", "활동 통계를 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", path)
+            return record_error("ACTIVITY_500_1", path)
 
         # build a complete date map
         kst = pytz.timezone('Asia/Seoul')

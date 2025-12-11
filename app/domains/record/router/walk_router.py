@@ -8,7 +8,13 @@ from app.domains.record.service.walk_detail_service import RecordWalkDetailServi
 from app.domains.record.service.photo_service import RecordPhotoService
 from app.domains.record.service.stats_service import ActivityStatsService
 from app.domains.record.service.recent_service import RecentActivityService
-from app.schemas.error_schema import ErrorResponse
+from app.domains.record.exception import (
+    RECORD_WALK_LIST_RESPONSES,
+    RECORD_WALK_DETAIL_RESPONSES,
+    RECORD_PHOTO_LIST_RESPONSES,
+    RECORD_STATS_RESPONSES,
+    RECORD_RECENT_RESPONSES,
+)
 from app.schemas.record.walk_list_schema import WalkListResponse
 from app.schemas.record.walk_detail_schema import WalkDetailResponse
 from app.schemas.record.photo_list_schema import PhotoListResponse
@@ -28,13 +34,7 @@ router = APIRouter(
     description="특정 반려동물의 산책 목록을 조회합니다. 날짜 범위로 필터링할 수 있습니다.",
     status_code=200,
     response_model=WalkListResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "잘못된 요청 (날짜 형식 오류 등)"},
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        403: {"model": ErrorResponse, "description": "권한 없음"},
-        404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=RECORD_WALK_LIST_RESPONSES,
 )
 def list_walks(
     request: Request,
@@ -60,13 +60,7 @@ def list_walks(
     description="특정 산책의 상세 정보를 조회합니다. 위치 포인트 포함 여부를 선택할 수 있습니다.",
     status_code=200,
     response_model=WalkDetailResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "잘못된 요청"},
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        403: {"model": ErrorResponse, "description": "권한 없음"},
-        404: {"model": ErrorResponse, "description": "산책을 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=RECORD_WALK_DETAIL_RESPONSES,
 )
 def get_walk_detail(
     request: Request,
@@ -90,13 +84,7 @@ def get_walk_detail(
     description="특정 반려동물의 산책 사진 목록을 페이지네이션으로 조회합니다.",
     status_code=200,
     response_model=PhotoListResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "잘못된 요청"},
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        403: {"model": ErrorResponse, "description": "권한 없음"},
-        404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=RECORD_PHOTO_LIST_RESPONSES,
 )
 def list_photos(
     request: Request,
@@ -126,13 +114,7 @@ def list_photos(
     description="반려동물의 활동 통계를 조회합니다. 기간별로 그래프 데이터와 요약 정보를 제공합니다.",
     status_code=200,
     response_model=ActivityStatsResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "잘못된 요청 (기간 형식 오류 등)"},
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        403: {"model": ErrorResponse, "description": "권한 없음"},
-        404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=RECORD_STATS_RESPONSES,
 )
 def get_activity_stats(
     request: Request,
@@ -171,13 +153,7 @@ def get_activity_stats(
     description="반려동물의 최근 산책 활동을 조회합니다. limit 파라미터로 조회 개수를 지정할 수 있습니다.",
     status_code=200,
     response_model=RecentActivitiesResponse,
-    responses={
-        400: {"model": ErrorResponse, "description": "잘못된 요청 (limit 값 오류 등)"},
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        403: {"model": ErrorResponse, "description": "권한 없음"},
-        404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=RECORD_RECENT_RESPONSES,
 )
 def list_recent(
     request: Request,

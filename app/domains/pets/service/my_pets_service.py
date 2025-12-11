@@ -8,7 +8,7 @@ from typing import Optional
 from datetime import datetime
 
 from app.core.firebase import verify_firebase_token
-from app.core.error_handler import error_response
+from app.domains.pets.exception import pet_error
 from app.models.user import User
 from app.domains.pets.repository.pet_repository import PetRepository
 from app.domains.auth.repository.auth_repository import AuthRepository
@@ -30,20 +30,18 @@ class MyPetsService:
         # 1) Auth
         # ------------------------
         if authorization is None:
-            return error_response(401, "MY_PETS_401_1", "Authorization 헤더가 필요합니다.", path)
+            return pet_error("MY_PETS_401_1", path)
 
         if not authorization.startswith("Bearer "):
-            return error_response(401, "MY_PETS_401_2",
-                                  "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다.", path)
+            return pet_error("MY_PETS_401_2", path)
 
         parts = authorization.split(" ")
         if len(parts) != 2:
-            return error_response(401, "MY_PETS_401_2", "Authorization 헤더 형식이 잘못되었습니다.", path)
+            return pet_error("MY_PETS_401_2", path)
 
         decoded = verify_firebase_token(parts[1])
         if decoded is None:
-            return error_response(401, "MY_PETS_401_2",
-                                  "유효하지 않거나 만료된 Firebase ID Token입니다. 다시 로그인해주세요.", path)
+            return pet_error("MY_PETS_401_2", path)
 
         firebase_uid = decoded.get("uid")
 
@@ -82,7 +80,7 @@ class MyPetsService:
             except Exception as e:
                 print("MY_PETS_CREATE_USER_ERROR:", e)
                 self.db.rollback()
-                return error_response(500, "MY_PETS_500_2", "사용자 정보를 생성하는 중 오류가 발생했습니다.", path)
+                return pet_error("MY_PETS_500_2", path)
 
         # ------------------------
         # 3) Pet 조회
@@ -91,8 +89,7 @@ class MyPetsService:
             rows = self.pet_repo.get_pets_for_user(user.user_id)
         except Exception as e:
             print("MY_PETS_QUERY_ERROR:", e)
-            return error_response(500, "MY_PETS_500_1",
-                                  "반려동물 목록을 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.", path)
+            return pet_error("MY_PETS_500_1", path)
 
         # ------------------------
         # 4) 데이터 변환
