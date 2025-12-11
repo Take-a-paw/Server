@@ -1,14 +1,49 @@
-import firebase_admin
-from firebase_admin import credentials, auth, storage, messaging
-from app.core.config import settings
+import base64
+import json
 import os
 from datetime import datetime
 from typing import Optional, Dict, Any
 
-# Firebase Credential 파일 경로 로드
-print(f"[INFO] Loading Firebase credentials from: {settings.FIREBASE_CREDENTIALS}")
+import firebase_admin
+from firebase_admin import auth, credentials, messaging, storage
+
+from app.core.config import settings
+
+
+def _load_firebase_credentials(raw_cred: str):
+    """
+    Accepts credential as:
+    - file path (if exists)
+    - JSON string
+    - base64-encoded JSON string
+    """
+    if not raw_cred:
+        raise ValueError("FIREBASE_CREDENTIALS is empty")
+
+    # 1) Treat as path if file exists
+    if isinstance(raw_cred, str) and os.path.exists(raw_cred):
+        return credentials.Certificate(raw_cred)
+
+    # 2) Try JSON string
+    try:
+        return credentials.Certificate(json.loads(raw_cred))
+    except Exception:
+        pass
+
+    # 3) Try base64 → JSON
+    try:
+        decoded = base64.b64decode(raw_cred)
+        return credentials.Certificate(json.loads(decoded))
+    except Exception:
+        pass
+
+    raise ValueError("FIREBASE_CREDENTIALS must be a valid path, JSON, or base64 JSON")
+
+
+# Firebase Credential 로드
+print(f"[INFO] Loading Firebase credentials...")
 try:
-    cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS)
+    cred = _load_firebase_credentials(settings.FIREBASE_CREDENTIALS)
     print(f"[INFO] Firebase credentials loaded successfully")
 except Exception as e:
     print(f"[ERROR] Failed to load Firebase credentials: {e}")
