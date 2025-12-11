@@ -1,117 +1,26 @@
-import json
-import requests
 from datetime import datetime
 from fastapi import Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 
-from openai import OpenAI
-
-from app.core.config import settings
 from app.core.firebase import verify_firebase_token
 from app.core.error_handler import error_response
 
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.family_member import FamilyMember
-from app.models.notification import NotificationType
 
-from app.domains.notifications.repository.notification_repository import NotificationRepository
 from app.domains.walk.repository.recommendation_repository import RecommendationRepository
 
-from app.schemas.notifications.common_action_schema import (
-    NotificationActionResponse,
-    NotificationActionItem,
-)
 from app.schemas.walk.walk_recommendation_request_schema import WalkRecommendationRequest
 
 
 class WalkRecommendationService:
     def __init__(self, db: Session):
         self.db = db
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        self.notif_repo = NotificationRepository(db)
         self.recommendation_repo = RecommendationRepository(db)
-
-    def fetch_weather(self, lat: float, lng: float):
-        """외부 날씨 API 호출"""
-        try:
-            url = (
-                f"https://api.openweathermap.org/data/2.5/weather?"
-                f"lat={lat}&lon={lng}&appid={settings.OPENWEATHER_API_KEY}"
-                f"&units=metric&lang=kr"
-            )
-            res = requests.get(url, timeout=5)
-            if res.status_code != 200:
-                print("WEATHER API ERROR:", res.text)
-                return None
-
-            d = res.json()
-            return {
-                "status": d["weather"][0]["main"],
-                "status_ko": d["weather"][0]["description"],
-                "temp_c": d["main"]["temp"],
-            }
-        except Exception as e:
-            print("WEATHER FETCH ERROR:", e)
-            return None
-
-    def generate_walk_recommendation(
-        self, pet: Pet, weather_status: Optional[str], weather_temp_c: Optional[float],
-        today_walk_count: Optional[int], today_total_distance_km: Optional[float]
-    ):
-        """OpenAI를 사용하여 산책 추천 멘트 생성"""
-        prompt = f"""
-        너는 반려동물 산책 전문가야.
-        다음 정보를 바탕으로 간단한 산책 추천 멘트를 작성해줘.
-
-        펫 정보:
-        - 이름: {pet.name}
-        - 종: {pet.breed}
-        - 나이: {pet.age}세
-        - 체중: {pet.weight}kg
-        - 질병: {pet.disease if pet.disease else "없음"}
-
-        위 정보를 바탕으로 다음 형식으로만 간단하게 작성해주세요:
-        "{pet.name}는 하루에 {{횟수}}번 {{시간}}시간씩 {{거리}}km를 산책하는게 좋아요!"
-
-        주의사항:
-        - 인사말이나 긴 설명 없이 위 형식 그대로만 작성
-        - 횟수, 시간, 거리는 펫의 종, 나이, 체중을 고려하여 적절한 값으로 설정
-        - 한 문장으로만 작성 (30자 이내)
-        - 예시: "댕댕이는 하루에 5번 1시간씩 3km를 산책하는게 좋아요!"
-
-        JSON 형식:
-        {{
-            "title": "산책 추천",
-            "message": "멘트 내용"
-        }}
-        """
-
-        try:
-            res = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                temperature=0.7,
-                messages=[
-                    {"role": "system", "content": "Output JSON only."},
-                    {"role": "user", "content": prompt},
-                ],
-            )
-
-            raw = res.choices[0].message.content.strip()
-            cleaned = raw.replace("```json", "").replace("```", "").strip()
-            advice = json.loads(cleaned)
-
-            # fallback
-            if not isinstance(advice.get("title"), str):
-                advice["title"] = "산책 추천"
-            if not isinstance(advice.get("message"), str):
-                advice["message"] = f"{pet.name}는 하루에 3번 30분씩 2km를 산책하는게 좋아요!"
-
-            return advice
-        except Exception as e:
-            print("WALK RECOMMENDATION GPT ERROR:", e)
-            return None
 
     def generate_recommendation(
         self,
@@ -161,59 +70,47 @@ class WalkRecommendationService:
         if not family_member:
             return error_response(403, "WALK_REC_403_1", "해당 반려동물의 산책 추천을 받을 권한이 없습니다.", path)
 
-        # 5) 날씨 정보 처리
-        weather_status = body.weather_status
-        weather_temp_c = body.weather_temp_c
+        # 5) 저장된 추천 정보 조회 (pet_walk_recommendation)
+        recommendation = self.recommendation_repo.get_recommendation_by_pet_id(pet.pet_id)
+        if not recommendation:
+            return error_response(
+                404, "WALK_REC_404_3", "해당 반려동물의 추천 산책 정보가 아직 생성되지 않았습니다.", path
+            )
 
-        # 요청에 날씨 정보가 없으면 API 호출
-        if not weather_status or weather_temp_c is None:
-            weather_data = self.fetch_weather(body.lat, body.lng)
-            if weather_data:
-                if not weather_status:
-                    weather_status = weather_data.get("status_ko", weather_data.get("status"))
-                if weather_temp_c is None:
-                    weather_temp_c = weather_data.get("temp_c")
-
-        # 6) OpenAI 호출하여 추천 멘트 생성
-        advice = self.generate_walk_recommendation(
-            pet=pet,
-            weather_status=weather_status,
-            weather_temp_c=weather_temp_c,
-            today_walk_count=body.today_walk_count,
-            today_total_distance_km=body.today_total_distance_km,
+        # per-walk 계산
+        recommended_minutes_per_walk = (
+            recommendation.recommended_minutes // recommendation.recommended_walks
+            if recommendation.recommended_walks > 0 else 0
+        )
+        recommended_distance_km_per_walk = (
+            float(recommendation.recommended_distance_km) / recommendation.recommended_walks
+            if recommendation.recommended_walks > 0 else 0.0
         )
 
-        if advice is None:
-            return error_response(500, "WALK_REC_500_1", "산책 추천 멘트를 생성하는 중 오류가 발생했습니다.", path)
+        response_content = {
+            "success": True,
+            "status": 200,
+            "recommendation": {
+                "pet_id": recommendation.pet_id,
+                "min_walks": recommendation.min_walks,
+                "min_minutes": recommendation.min_minutes,
+                "min_distance_km": float(recommendation.min_distance_km),
+                "recommended_walks": recommendation.recommended_walks,
+                "recommended_minutes": recommendation.recommended_minutes,
+                "recommended_distance_km": float(recommendation.recommended_distance_km),
+                "max_walks": recommendation.max_walks,
+                "max_minutes": recommendation.max_minutes,
+                "max_distance_km": float(recommendation.max_distance_km),
+                "generated_by": recommendation.generated_by,
+                "updated_at": recommendation.updated_at.isoformat() if recommendation.updated_at else None,
+                "per_walk": {
+                    "recommended_minutes_per_walk": recommended_minutes_per_walk,
+                    "recommended_distance_km_per_walk": round(recommended_distance_km_per_walk, 2),
+                },
+            },
+            "timeStamp": datetime.utcnow().isoformat(),
+            "path": path,
+        }
 
-        # 7) 알림 생성 (개인 알림, 읽음 처리 제외)
-        notif = self.notif_repo.create_notification(
-            family_id=pet.family_id,
-            target_user_id=user.user_id,  # 개인 알림
-            related_pet_id=pet.pet_id,
-            related_user_id=user.user_id,
-            notif_type=NotificationType.SYSTEM_WEATHER,  # 기존 타입 재사용
-            title=advice["title"],
-            message=advice["message"],
-        )
-        self.db.commit()
-
-        # 8) 응답 생성
-        return NotificationActionResponse(
-            success=True,
-            status=200,
-            notification=NotificationActionItem(
-                notification_id=notif.notification_id,
-                type="WALK_RECOMMENDATION",
-                title=notif.title,
-                message=notif.message,
-                family_id=pet.family_id,
-                target_user_id=user.user_id,
-                related_pet_id=pet.pet_id,
-                related_user_id=user.user_id,
-                created_at=notif.created_at,
-            ),
-            timeStamp=datetime.utcnow().isoformat(),
-            path=path,
-        )
+        return JSONResponse(status_code=200, content=jsonable_encoder(response_content))
 

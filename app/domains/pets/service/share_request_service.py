@@ -17,6 +17,7 @@ from app.models.pet_share_request import RequestStatus
 from app.domains.pets.repository.pet_repository import PetRepository
 from app.domains.pets.repository.family_repository import FamilyRepository
 from app.domains.pets.repository.pet_share_repository import PetShareRepository
+from app.domains.auth.repository.auth_repository import AuthRepository
 
 
 class PetShareRequestService:
@@ -56,7 +57,31 @@ class PetShareRequestService:
         # 2) User 조회
         user = self.db.query(User).filter(User.firebase_uid == firebase_uid).first()
         if not user:
-            return error_response(404, "PET_SHARE_404_1", "사용자를 찾을 수 없습니다.", path)
+            try:
+                provider = decoded.get("firebase", {}).get("sign_in_provider")
+                provider_map = {
+                    "google.com": "google",
+                    "apple.com": "apple",
+                    "oidc.kakao": "kakao",
+                    "custom": "kakao",
+                    "password": "email",
+                }
+                sns = provider_map.get(provider, "email")
+                nickname = decoded.get("name") or decoded.get("displayName") or f"user_{firebase_uid[:6]}"
+                email = decoded.get("email")
+                picture = decoded.get("picture")
+                auth_repo = AuthRepository(self.db)
+                user = auth_repo.create_user(
+                    firebase_uid=firebase_uid,
+                    nickname=nickname,
+                    email=email,
+                    profile_img_url=picture,
+                    sns=sns,
+                )
+            except Exception as e:
+                print("PET_SHARE_CREATE_USER_ERROR:", e)
+                self.db.rollback()
+                return error_response(500, "PET_SHARE_500_2", "사용자 정보를 생성하는 중 오류가 발생했습니다.", path)
 
         # 3) Pet 조회
         pet = self.pet_repo.get_by_search_id(pet_search_id)
@@ -190,6 +215,10 @@ class PetShareRequestService:
         if req.status != RequestStatus.PENDING:
             return error_response(409, "PET_SHARE_APPROVE_409_1", "이미 처리됨", path)
 
+        # 6-1) 이미 가족 구성원이라면 중복 승인 불가
+        if self.family_repo.is_member(req.requester_id, pet.family_id):
+            return error_response(409, "PET_SHARE_APPROVE_409_2", "이미 가족 구성원입니다.", path)
+
         # 7) 승인 처리
         try:
             req.status = new_status
@@ -197,9 +226,18 @@ class PetShareRequestService:
 
             created_member = None
             if new_status == RequestStatus.APPROVED:
-                created_member = self.family_repo.create_member(
-                    family_id=pet.family_id,
-                    user_id=req.requester_id
+                # 이미 멤버가 아니라는 전제이지만, 혹시 모를 중복 생성 방지
+                if not self.family_repo.is_member(req.requester_id, pet.family_id):
+                    created_member = self.family_repo.create_member(
+                        family_id=pet.family_id,
+                        user_id=req.requester_id
+                    )
+
+                # 동일 사용자/펫의 다른 Pending 요청은 모두 거절 처리
+                self.share_repo.reject_other_pending(
+                    pet_id=pet.pet_id,
+                    requester_id=req.requester_id,
+                    exclude_request_id=req.request_id,
                 )
 
             self.db.commit()
@@ -438,7 +476,31 @@ class PetShareRequestService:
             .first()
         )
         if not user:
-            return error_response(404, "RECEIVED_REQ_LIST_404_1", "사용자를 찾을 수 없습니다.", path)
+            try:
+                provider = decoded.get("firebase", {}).get("sign_in_provider")
+                provider_map = {
+                    "google.com": "google",
+                    "apple.com": "apple",
+                    "oidc.kakao": "kakao",
+                    "custom": "kakao",
+                    "password": "email",
+                }
+                sns = provider_map.get(provider, "email")
+                nickname = decoded.get("name") or decoded.get("displayName") or f"user_{firebase_uid[:6]}"
+                email = decoded.get("email")
+                picture = decoded.get("picture")
+                auth_repo = AuthRepository(self.db)
+                user = auth_repo.create_user(
+                    firebase_uid=firebase_uid,
+                    nickname=nickname,
+                    email=email,
+                    profile_img_url=picture,
+                    sns=sns,
+                )
+            except Exception as e:
+                print("RECEIVED_REQ_CREATE_USER_ERROR:", e)
+                self.db.rollback()
+                return error_response(500, "RECEIVED_REQ_LIST_500_2", "사용자 정보를 생성하는 중 오류가 발생했습니다.", path)
 
         # 3) Status 파싱
         parsed_status = None

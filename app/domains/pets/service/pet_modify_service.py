@@ -9,7 +9,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.firebase import verify_firebase_token
+from app.core.firebase import verify_firebase_token, send_push_notification_to_multiple
 from app.core.error_handler import error_response
 
 from app.models.user import User
@@ -21,11 +21,13 @@ from app.models.photo import Photo
 from app.models.pet_walk_goal import PetWalkGoal
 from app.models.pet_walk_recommendation import PetWalkRecommendation
 from app.models.pet_share_request import PetShareRequest
-from app.models.notification import Notification
+from app.models.notification import Notification, NotificationType
+from app.models.notification_reads import NotificationRead
 from app.models.walk_tracking_point import WalkTrackingPoint
 from app.models.activity_stat import ActivityStat
 
 from app.domains.pets.repository.pet_repository import PetRepository
+from app.domains.notifications.repository.notification_repository import NotificationRepository
 from app.schemas.pets.pet_update_schema import PetUpdateRequest
 
 
@@ -33,6 +35,7 @@ class PetModifyService:
     def __init__(self, db: Session):
         self.db = db
         self.repo = PetRepository(db)
+        self.notif_repo = NotificationRepository(db)
         self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
     # --------------------------------------------------
@@ -341,14 +344,70 @@ class PetModifyService:
         if not pet:
             return error_response(404, "PET_DELETE_404_2", "반려동물을 찾을 수 없습니다.", path)
 
-        # 🔥 삭제 권한: 오직 OWNER
-        if pet.owner_id != user.user_id:
-            return error_response(403, "PET_DELETE_403_1", "OWNER만 반려동물을 삭제할 수 있습니다.", path)
+        is_owner = pet.owner_id == user.user_id
+        pet_name = pet.name
+        family_id = pet.family_id
+
+        # 🔥 OWNER가 아니면 가족 구성원에서 본인만 제거
+        if not is_owner:
+            deleted = (
+                self.db.query(FamilyMember)
+                .filter(
+                    FamilyMember.family_id == family_id,
+                    FamilyMember.user_id == user.user_id
+                )
+                .delete(synchronize_session=False)
+            )
+
+            if deleted == 0:
+                return error_response(404, "PET_DELETE_404_3", "가족 구성원 정보를 찾을 수 없습니다.", path)
+
+            # 가족에게 알림: 구성원이 펫 가족에서 나감
+            self.notif_repo.create_notification(
+                family_id=family_id,
+                target_user_id=None,
+                related_pet_id=None,  # FK 충돌 방지
+                related_user_id=user.user_id,
+                notif_type=NotificationType.PET_MEMBER_LEFT,
+                title="가족 구성원 변경",
+                message=f"{user.nickname}님이 {pet_name} 가족에서 나갔습니다.",
+            )
+
+            self.db.commit()
+
+            return JSONResponse(
+                status_code=200,
+                content=jsonable_encoder(
+                    {
+                        "success": True,
+                        "status": 200,
+                        "message": "가족에서 탈퇴되었습니다.",
+                        "pet_id": pet_id,
+                        "timeStamp": datetime.utcnow().isoformat(),
+                        "path": path,
+                    }
+                ),
+            )
 
         # ---------------------------------------------------
         # 🔥 연관 데이터 전체 삭제 (FK 순서 완벽 보장)
         # ---------------------------------------------------
         try:
+            # 삭제 전에 가족 멤버 및 FCM 토큰 수집 (OWNER는 제외)
+            family_members = (
+                self.db.query(FamilyMember)
+                .filter(FamilyMember.family_id == family_id)
+                .all()
+            )
+            member_user_ids = [m.user_id for m in family_members if m.user_id != user.user_id]
+
+            users = (
+                self.db.query(User)
+                .filter(User.user_id.in_(member_user_ids))
+                .all()
+            ) if member_user_ids else []
+            fcm_tokens = [u.fcm_token for u in users if u and u.fcm_token]
+
             # 1️⃣ WalkTrackingPoint 삭제
             walk_ids = self.db.query(Walk.walk_id).filter(Walk.pet_id == pet_id).all()
             walk_ids = [w[0] for w in walk_ids]
@@ -383,13 +442,25 @@ class PetModifyService:
             ).delete(synchronize_session=False)
 
             # 7️⃣ PetShareRequest 삭제  
-            #     (⚠️ 먼저 해당 요청을 참조하는 Notifications 제거 필요)
+            #     (⚠️ 먼저 해당 요청을 참조하는 Notifications/Reads 제거 필요)
             share_ids = self.db.query(PetShareRequest.request_id).filter(
                 PetShareRequest.pet_id == pet_id
             ).all()
             share_ids = [sid[0] for sid in share_ids]
 
             if share_ids:
+                # 관련 알림의 읽음 기록 제거
+                notif_ids = [
+                    n[0]
+                    for n in self.db.query(Notification.notification_id)
+                    .filter(Notification.related_request_id.in_(share_ids))
+                    .all()
+                ]
+                if notif_ids:
+                    self.db.query(NotificationRead).filter(
+                        NotificationRead.notification_id.in_(notif_ids)
+                    ).delete(synchronize_session=False)
+
                 self.db.query(Notification).filter(
                     Notification.related_request_id.in_(share_ids)
                 ).delete(synchronize_session=False)
@@ -398,36 +469,55 @@ class PetModifyService:
                 PetShareRequest.pet_id == pet_id
             ).delete(synchronize_session=False)
 
-            # 8️⃣ Notifications (산책/일반 알림)
-            self.db.query(Notification).filter(
-                Notification.related_pet_id == pet_id
-            ).delete(synchronize_session=False)
+            # 8️⃣ Notifications (산책/일반 알림) + 읽음 기록
+            notif_ids = [
+                n[0]
+                for n in self.db.query(Notification.notification_id)
+                .filter(Notification.related_pet_id == pet_id)
+                .all()
+            ]
+            if notif_ids:
+                self.db.query(NotificationRead).filter(
+                    NotificationRead.notification_id.in_(notif_ids)
+                ).delete(synchronize_session=False)
+                self.db.query(Notification).filter(
+                    Notification.notification_id.in_(notif_ids)
+                ).delete(synchronize_session=False)
 
             # 9️⃣ 마지막으로 Pet 삭제
             self.db.delete(pet)
 
-            # ---------------------------------------------------
-            # 🔥 펫이 삭제되면 family도 함께 삭제 (항상)
-            # ---------------------------------------------------
-            family_id = pet.family_id
-
-            # 1) family_members 삭제
+            # 🔥 가족 및 구성원 정리 (소유자 삭제 시 가족 단위 제거)
             self.db.query(FamilyMember).filter(
                 FamilyMember.family_id == family_id
             ).delete(synchronize_session=False)
 
-            # 2) family에 속한 나머지 펫들도 삭제
             self.db.query(Pet).filter(
                 Pet.family_id == family_id
             ).delete(synchronize_session=False)
 
-            # 3) family 삭제
             self.db.query(Family).filter(
                 Family.family_id == family_id
             ).delete(synchronize_session=False)
 
             # Commit
             self.db.commit()
+            # 🔔 FCM 푸시: 가족 전원에게 펫 삭제 알림 (OWNER는 제외)
+            if fcm_tokens:
+                try:
+                    send_push_notification_to_multiple(
+                        fcm_tokens=fcm_tokens,
+                        title="🐾 반려동물 삭제",
+                        body=f"{pet_name}가 삭제되었습니다.",
+                        data={
+                            "type": "PET_DELETED",
+                            "pet_id": str(pet_id),
+                            "family_id": str(family_id),
+                            "pet_name": pet_name or ""
+                        },
+                    )
+                except Exception as e:
+                    print("FCM PET_DELETE ERROR:", e)
 
         except Exception as e:
             print("PET DELETE ERROR:", e)
