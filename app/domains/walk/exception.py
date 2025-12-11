@@ -59,6 +59,87 @@ RECOMMEND_ERRORS: Dict[str, WalkError] = {
     "WALK_REC_500_1": WalkError(500, "WALK_REC_500_1", "추천 산책 정보를 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
 }
 
+SESSION_ERRORS: Dict[str, WalkError] = {
+    # start
+    "WALK_START_401_1": WalkError(401, "WALK_START_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_START_401_2": WalkError(401, "WALK_START_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_START_404_1": WalkError(404, "WALK_START_404_1", "사용자를 찾을 수 없습니다."),
+    "WALK_START_404_2": WalkError(404, "WALK_START_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
+    "WALK_START_403_1": WalkError(403, "WALK_START_403_1", "해당 반려동물 산책을 시작할 권한이 없습니다."),
+    "WALK_START_400_1": WalkError(400, "WALK_START_400_1", "start_lat와 start_lng는 둘 다 있거나 둘 다 없어야 합니다."),
+    "WALK_START_400_2": WalkError(400, "WALK_START_400_2", "위도/경도 값이 유효 범위를 벗어났습니다."),
+    "WALK_START_409_1": WalkError(409, "WALK_START_409_1", "이미 진행 중인 산책이 있습니다."),
+    "WALK_START_500_1": WalkError(500, "WALK_START_500_1", "산책을 시작하는 중 오류가 발생했습니다."),
+
+    # track
+    "WALK_POINT_401_1": WalkError(401, "WALK_POINT_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_POINT_401_2": WalkError(401, "WALK_POINT_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_POINT_404_1": WalkError(404, "WALK_POINT_404_1", "사용자를 찾을 수 없습니다."),
+    "WALK_POINT_404_2": WalkError(404, "WALK_POINT_404_2", "요청하신 산책 세션을 찾을 수 없습니다."),
+    "WALK_POINT_403_1": WalkError(403, "WALK_POINT_403_1", "해당 산책을 기록할 권한이 없습니다."),
+    "WALK_POINT_400_1": WalkError(400, "WALK_POINT_400_1", "위도/경도 값이 유효 범위를 벗어났습니다."),
+    "WALK_POINT_400_2": WalkError(400, "WALK_POINT_400_2", "위도와 경도는 둘 다 있어야 합니다."),
+    "WALK_POINT_409_1": WalkError(409, "WALK_POINT_409_1", "이미 종료된 산책입니다."),
+    "WALK_POINT_500_1": WalkError(500, "WALK_POINT_500_1", "산책 위치를 기록하는 중 오류가 발생했습니다."),
+
+    # end
+    "WALK_END_401_1": WalkError(401, "WALK_END_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_END_401_2": WalkError(401, "WALK_END_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_END_404_1": WalkError(404, "WALK_END_404_1", "사용자를 찾을 수 없습니다."),
+    "WALK_END_404_2": WalkError(404, "WALK_END_404_2", "요청하신 산책 세션을 찾을 수 없습니다."),
+    "WALK_END_403_1": WalkError(403, "WALK_END_403_1", "해당 산책을 종료할 권한이 없습니다."),
+    "WALK_END_400_1": WalkError(400, "WALK_END_400_1", "총 이동 거리 값이 올바르지 않습니다."),
+    "WALK_END_400_2": WalkError(400, "WALK_END_400_2", "총 산책 시간 값이 올바르지 않습니다."),
+    "WALK_END_409_1": WalkError(409, "WALK_END_409_1", "이미 종료된 산책 세션입니다."),
+    "WALK_END_500_1": WalkError(500, "WALK_END_500_1", "산책을 종료하는 중 오류가 발생했습니다."),
+}
+
+SAVE_ERRORS: Dict[str, WalkError] = {
+    "WALK_SAVE_401_1": WalkError(401, "WALK_SAVE_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_SAVE_401_2": WalkError(401, "WALK_SAVE_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_SAVE_404_1": WalkError(404, "WALK_SAVE_404_1", "해당 사용자를 찾을 수 없습니다."),
+    "WALK_SAVE_404_2": WalkError(404, "WALK_SAVE_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
+    "WALK_SAVE_403_1": WalkError(403, "WALK_SAVE_403_1", "해당 반려동물의 산책 기록을 저장할 권한이 없습니다."),
+    "WALK_SAVE_400_1": WalkError(400, "WALK_SAVE_400_1", "종료 시간은 시작 시간보다 이후여야 합니다."),
+    "WALK_SAVE_400_2": WalkError(400, "WALK_SAVE_400_2", "날짜/시간 형식이 올바르지 않습니다. ISO 8601 형식을 사용해주세요."),
+    "WALK_SAVE_500_1": WalkError(500, "WALK_SAVE_500_1", "산책 기록 저장 중 오류가 발생했습니다."),
+}
+
+NOTIFY_ERRORS: Dict[str, WalkError] = {
+    "WALK_NOTIFY_401_1": WalkError(401, "WALK_NOTIFY_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_NOTIFY_401_2": WalkError(401, "WALK_NOTIFY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_NOTIFY_404_1": WalkError(404, "WALK_NOTIFY_404_1", "해당 사용자를 찾을 수 없습니다."),
+    "WALK_NOTIFY_404_2": WalkError(404, "WALK_NOTIFY_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
+    "WALK_NOTIFY_403_1": WalkError(403, "WALK_NOTIFY_403_1", "해당 반려동물의 산책 알림을 전송할 권한이 없습니다."),
+    "WALK_NOTIFY_500_1": WalkError(500, "WALK_NOTIFY_500_1", "산책 알림 전송 중 오류가 발생했습니다."),
+}
+
+WEATHER_ERRORS: Dict[str, WalkError] = {
+    "WEATHER_400_1": WalkError(400, "WEATHER_400_1", "lat와 lng 쿼리 파라미터는 필수입니다."),
+    "WEATHER_400_2": WalkError(400, "WEATHER_400_2", "위도(lat)는 -90~90, 경도(lng)는 -180~180 범위여야 합니다."),
+    "WEATHER_502_1": WalkError(502, "WEATHER_502_1", "외부 날씨 서비스 응답에 문제가 발생했습니다. 잠시 후 다시 시도해주세요."),
+    "WEATHER_503_1": WalkError(503, "WEATHER_503_1", "현재 날씨 서비스를 이용할 수 없습니다. 잠시 후 다시 시도해주세요."),
+}
+
+TODAY_ERRORS: Dict[str, WalkError] = {
+    "WALK_TODAY_401_1": WalkError(401, "WALK_TODAY_401_1", "Authorization 헤더가 필요합니다."),
+    "WALK_TODAY_401_2": WalkError(401, "WALK_TODAY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
+    "WALK_TODAY_404_1": WalkError(404, "WALK_TODAY_404_1", "해당 사용자를 찾을 수 없습니다."),
+    "WALK_TODAY_404_2": WalkError(404, "WALK_TODAY_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
+    "WALK_TODAY_403_1": WalkError(403, "WALK_TODAY_403_1", "해당 반려동물의 산책 정보를 조회할 권한이 없습니다."),
+    "WALK_TODAY_500_1": WalkError(500, "WALK_TODAY_500_1", "오늘 산책 현황을 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+}
+
+WALK_ERRORS: Dict[str, WalkError] = {
+    **PHOTO_ERRORS,
+    **RANKING_ERRORS,
+    **RECOMMEND_ERRORS,
+    **SESSION_ERRORS,
+    **SAVE_ERRORS,
+    **NOTIFY_ERRORS,
+    **WEATHER_ERRORS,
+    **TODAY_ERRORS,
+}
 TODAY_ERRORS: Dict[str, WalkError] = {
     "WALK_TODAY_401_1": WalkError(401, "WALK_TODAY_401_1", "Authorization 헤더가 필요합니다."),
     "WALK_TODAY_401_2": WalkError(401, "WALK_TODAY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
@@ -206,52 +287,127 @@ RECOMMEND_RESPONSES = {
 
 # Session start/track/end Swagger 응답
 SESSION_START_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    409: {"model": ErrorResponse, "description": "이미 진행 중인 산책"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_400_1": SESSION_ERRORS["WALK_START_400_1"],
+        "WALK_START_400_2": SESSION_ERRORS["WALK_START_400_2"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_401_1": SESSION_ERRORS["WALK_START_401_1"],
+        "WALK_START_401_2": SESSION_ERRORS["WALK_START_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_403_1": SESSION_ERRORS["WALK_START_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_404_1": SESSION_ERRORS["WALK_START_404_1"],
+        "WALK_START_404_2": SESSION_ERRORS["WALK_START_404_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_409_1": SESSION_ERRORS["WALK_START_409_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/start", {
+        "WALK_START_500_1": SESSION_ERRORS["WALK_START_500_1"],
+    })}}},
 }
 
 SESSION_TRACK_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "산책을 찾을 수 없음"},
-    409: {"model": ErrorResponse, "description": "이미 종료된 산책"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_400_1": SESSION_ERRORS["WALK_POINT_400_1"],
+        "WALK_POINT_400_2": SESSION_ERRORS["WALK_POINT_400_2"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_401_1": SESSION_ERRORS["WALK_POINT_401_1"],
+        "WALK_POINT_401_2": SESSION_ERRORS["WALK_POINT_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_403_1": SESSION_ERRORS["WALK_POINT_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_404_1": SESSION_ERRORS["WALK_POINT_404_1"],
+        "WALK_POINT_404_2": SESSION_ERRORS["WALK_POINT_404_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_409_1": SESSION_ERRORS["WALK_POINT_409_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/point", {
+        "WALK_POINT_500_1": SESSION_ERRORS["WALK_POINT_500_1"],
+    })}}},
 }
 
 SESSION_END_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "산책을 찾을 수 없음"},
-    409: {"model": ErrorResponse, "description": "이미 종료된 산책"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_400_1": SESSION_ERRORS["WALK_END_400_1"],
+        "WALK_END_400_2": SESSION_ERRORS["WALK_END_400_2"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_401_1": SESSION_ERRORS["WALK_END_401_1"],
+        "WALK_END_401_2": SESSION_ERRORS["WALK_END_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_403_1": SESSION_ERRORS["WALK_END_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_404_1": SESSION_ERRORS["WALK_END_404_1"],
+        "WALK_END_404_2": SESSION_ERRORS["WALK_END_404_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_409_1": SESSION_ERRORS["WALK_END_409_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/sessions/end", {
+        "WALK_END_500_1": SESSION_ERRORS["WALK_END_500_1"],
+    })}}},
 }
 
 SAVE_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/save", {
+        "WALK_SAVE_400_1": SAVE_ERRORS["WALK_SAVE_400_1"],
+        "WALK_SAVE_400_2": SAVE_ERRORS["WALK_SAVE_400_2"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/save", {
+        "WALK_SAVE_401_1": SAVE_ERRORS["WALK_SAVE_401_1"],
+        "WALK_SAVE_401_2": SAVE_ERRORS["WALK_SAVE_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/save", {
+        "WALK_SAVE_403_1": SAVE_ERRORS["WALK_SAVE_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/save", {
+        "WALK_SAVE_404_1": SAVE_ERRORS["WALK_SAVE_404_1"],
+        "WALK_SAVE_404_2": SAVE_ERRORS["WALK_SAVE_404_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/save", {
+        "WALK_SAVE_500_1": SAVE_ERRORS["WALK_SAVE_500_1"],
+    })}}},
 }
 
 NOTIFY_RESPONSES = {
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/notify", {
+        "WALK_NOTIFY_401_1": NOTIFY_ERRORS["WALK_NOTIFY_401_1"],
+        "WALK_NOTIFY_401_2": NOTIFY_ERRORS["WALK_NOTIFY_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/notify", {
+        "WALK_NOTIFY_403_1": NOTIFY_ERRORS["WALK_NOTIFY_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/notify", {
+        "WALK_NOTIFY_404_1": NOTIFY_ERRORS["WALK_NOTIFY_404_1"],
+        "WALK_NOTIFY_404_2": NOTIFY_ERRORS["WALK_NOTIFY_404_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/notify", {
+        "WALK_NOTIFY_500_1": NOTIFY_ERRORS["WALK_NOTIFY_500_1"],
+    })}}},
 }
 
 WEATHER_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/weather", {
+        "WEATHER_400_1": WEATHER_ERRORS["WEATHER_400_1"],
+        "WEATHER_400_2": WEATHER_ERRORS["WEATHER_400_2"],
+    })}}},
     401: {"model": ErrorResponse, "description": "인증 실패 (선택)"},
-    502: {"model": ErrorResponse, "description": "외부 API 게이트웨이 오류"},
-    503: {"model": ErrorResponse, "description": "외부 API 서비스 불가"},
+    502: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/weather", {
+        "WEATHER_502_1": WEATHER_ERRORS["WEATHER_502_1"],
+    })}}},
+    503: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/walk/weather", {
+        "WEATHER_503_1": WEATHER_ERRORS["WEATHER_503_1"],
+    })}}},
     500: {"model": ErrorResponse, "description": "서버 내부 오류"},
 }
 
@@ -302,88 +458,6 @@ TODAY_RESPONSES = {
             }
         },
     },
-}
-# Session (start/track/end) 에러 정의
-SESSION_ERRORS: Dict[str, WalkError] = {
-    # start
-    "WALK_START_401_1": WalkError(401, "WALK_START_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_START_401_2": WalkError(401, "WALK_START_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_START_404_1": WalkError(404, "WALK_START_404_1", "사용자를 찾을 수 없습니다."),
-    "WALK_START_404_2": WalkError(404, "WALK_START_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
-    "WALK_START_403_1": WalkError(403, "WALK_START_403_1", "해당 반려동물 산책을 시작할 권한이 없습니다."),
-    "WALK_START_400_1": WalkError(400, "WALK_START_400_1", "start_lat와 start_lng는 둘 다 있거나 둘 다 없어야 합니다."),
-    "WALK_START_400_2": WalkError(400, "WALK_START_400_2", "위도/경도 값이 유효 범위를 벗어났습니다."),
-    "WALK_START_409_1": WalkError(409, "WALK_START_409_1", "이미 진행 중인 산책이 있습니다."),
-    "WALK_START_500_1": WalkError(500, "WALK_START_500_1", "산책을 시작하는 중 오류가 발생했습니다."),
-
-    # track
-    "WALK_POINT_401_1": WalkError(401, "WALK_POINT_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_POINT_401_2": WalkError(401, "WALK_POINT_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_POINT_404_1": WalkError(404, "WALK_POINT_404_1", "사용자를 찾을 수 없습니다."),
-    "WALK_POINT_404_2": WalkError(404, "WALK_POINT_404_2", "요청하신 산책 세션을 찾을 수 없습니다."),
-    "WALK_POINT_403_1": WalkError(403, "WALK_POINT_403_1", "해당 산책을 기록할 권한이 없습니다."),
-    "WALK_POINT_400_1": WalkError(400, "WALK_POINT_400_1", "위도/경도 값이 유효 범위를 벗어났습니다."),
-    "WALK_POINT_400_2": WalkError(400, "WALK_POINT_400_2", "위도와 경도는 둘 다 있어야 합니다."),
-    "WALK_POINT_409_1": WalkError(409, "WALK_POINT_409_1", "이미 종료된 산책입니다."),
-    "WALK_POINT_500_1": WalkError(500, "WALK_POINT_500_1", "산책 위치를 기록하는 중 오류가 발생했습니다."),
-
-    # end
-    "WALK_END_401_1": WalkError(401, "WALK_END_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_END_401_2": WalkError(401, "WALK_END_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_END_404_1": WalkError(404, "WALK_END_404_1", "사용자를 찾을 수 없습니다."),
-    "WALK_END_404_2": WalkError(404, "WALK_END_404_2", "요청하신 산책 세션을 찾을 수 없습니다."),
-    "WALK_END_403_1": WalkError(403, "WALK_END_403_1", "해당 산책을 종료할 권한이 없습니다."),
-    "WALK_END_400_1": WalkError(400, "WALK_END_400_1", "총 이동 거리 값이 올바르지 않습니다."),
-    "WALK_END_400_2": WalkError(400, "WALK_END_400_2", "총 산책 시간 값이 올바르지 않습니다."),
-    "WALK_END_409_1": WalkError(409, "WALK_END_409_1", "이미 종료된 산책 세션입니다."),
-    "WALK_END_500_1": WalkError(500, "WALK_END_500_1", "산책을 종료하는 중 오류가 발생했습니다."),
-}
-
-SAVE_ERRORS: Dict[str, WalkError] = {
-    "WALK_SAVE_401_1": WalkError(401, "WALK_SAVE_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_SAVE_401_2": WalkError(401, "WALK_SAVE_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_SAVE_404_1": WalkError(404, "WALK_SAVE_404_1", "해당 사용자를 찾을 수 없습니다."),
-    "WALK_SAVE_404_2": WalkError(404, "WALK_SAVE_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
-    "WALK_SAVE_403_1": WalkError(403, "WALK_SAVE_403_1", "해당 반려동물의 산책 기록을 저장할 권한이 없습니다."),
-    "WALK_SAVE_400_1": WalkError(400, "WALK_SAVE_400_1", "종료 시간은 시작 시간보다 이후여야 합니다."),
-    "WALK_SAVE_400_2": WalkError(400, "WALK_SAVE_400_2", "날짜/시간 형식이 올바르지 않습니다. ISO 8601 형식을 사용해주세요."),
-    "WALK_SAVE_500_1": WalkError(500, "WALK_SAVE_500_1", "산책 기록 저장 중 오류가 발생했습니다."),
-}
-
-NOTIFY_ERRORS: Dict[str, WalkError] = {
-    "WALK_NOTIFY_401_1": WalkError(401, "WALK_NOTIFY_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_NOTIFY_401_2": WalkError(401, "WALK_NOTIFY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_NOTIFY_404_1": WalkError(404, "WALK_NOTIFY_404_1", "해당 사용자를 찾을 수 없습니다."),
-    "WALK_NOTIFY_404_2": WalkError(404, "WALK_NOTIFY_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
-    "WALK_NOTIFY_403_1": WalkError(403, "WALK_NOTIFY_403_1", "해당 반려동물의 산책 알림을 전송할 권한이 없습니다."),
-    "WALK_NOTIFY_500_1": WalkError(500, "WALK_NOTIFY_500_1", "산책 알림 전송 중 오류가 발생했습니다."),
-}
-
-WEATHER_ERRORS: Dict[str, WalkError] = {
-    "WEATHER_400_1": WalkError(400, "WEATHER_400_1", "lat와 lng 쿼리 파라미터는 필수입니다."),
-    "WEATHER_400_2": WalkError(400, "WEATHER_400_2", "위도(lat)는 -90~90, 경도(lng)는 -180~180 범위여야 합니다."),
-    "WEATHER_502_1": WalkError(502, "WEATHER_502_1", "외부 날씨 서비스 응답에 문제가 발생했습니다. 잠시 후 다시 시도해주세요."),
-    "WEATHER_503_1": WalkError(503, "WEATHER_503_1", "현재 날씨 서비스를 이용할 수 없습니다. 잠시 후 다시 시도해주세요."),
-}
-
-TODAY_ERRORS: Dict[str, WalkError] = {
-    "WALK_TODAY_401_1": WalkError(401, "WALK_TODAY_401_1", "Authorization 헤더가 필요합니다."),
-    "WALK_TODAY_401_2": WalkError(401, "WALK_TODAY_401_2", "Authorization 헤더는 'Bearer <token>' 형식이어야 합니다."),
-    "WALK_TODAY_404_1": WalkError(404, "WALK_TODAY_404_1", "해당 사용자를 찾을 수 없습니다."),
-    "WALK_TODAY_404_2": WalkError(404, "WALK_TODAY_404_2", "요청하신 반려동물을 찾을 수 없습니다."),
-    "WALK_TODAY_403_1": WalkError(403, "WALK_TODAY_403_1", "해당 반려동물의 산책 정보를 조회할 권한이 없습니다."),
-    "WALK_TODAY_500_1": WalkError(500, "WALK_TODAY_500_1", "오늘 산책 현황을 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
-}
-
-WALK_ERRORS: Dict[str, WalkError] = {
-    **PHOTO_ERRORS,
-    **RANKING_ERRORS,
-    **RECOMMEND_ERRORS,
-    **SESSION_ERRORS,
-    **SAVE_ERRORS,
-    **NOTIFY_ERRORS,
-    **WEATHER_ERRORS,
-    **TODAY_ERRORS,
 }
 
 # 공통 에러 응답 생성기

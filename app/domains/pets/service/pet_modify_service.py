@@ -540,19 +540,6 @@ class PetModifyService:
             # 9️⃣ 마지막으로 Pet 삭제
             self.db.delete(pet)
 
-            # 🔥 가족 및 구성원 정리 (소유자 삭제 시 가족 단위 제거)
-            self.db.query(FamilyMember).filter(
-                FamilyMember.family_id == family_id
-            ).delete(synchronize_session=False)
-
-            self.db.query(Pet).filter(
-                Pet.family_id == family_id
-            ).delete(synchronize_session=False)
-
-            self.db.query(Family).filter(
-                Family.family_id == family_id
-            ).delete(synchronize_session=False)
-
             # Commit
             self.db.commit()
             # 🔔 FCM 푸시: 가족 전원에게 펫 삭제 알림 (OWNER는 제외)

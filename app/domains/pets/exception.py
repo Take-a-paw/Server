@@ -60,6 +60,7 @@ PET_ERRORS: Dict[str, PetError] = {
     "PET_DELETE_404_1": PetError(404, "PET_DELETE_404_1", "사용자를 찾을 수 없습니다."),
     "PET_DELETE_404_2": PetError(404, "PET_DELETE_404_2", "반려동물을 찾을 수 없습니다."),
     "PET_DELETE_404_3": PetError(404, "PET_DELETE_404_3", "가족 구성원 정보를 찾을 수 없습니다."),
+    "PET_DELETE_403_1": PetError(403, "PET_DELETE_403_1", "펫의 주인만 삭제할 수 있습니다."),
     "PET_DELETE_500_1": PetError(500, "PET_DELETE_500_1", "반려동물 삭제 중 오류 발생"),
 
     # Share request create
@@ -81,6 +82,12 @@ PET_ERRORS: Dict[str, PetError] = {
     "PET_SHARE_APPROVE_409_1": PetError(409, "PET_SHARE_APPROVE_409_1", "이미 처리됨"),
     "PET_SHARE_APPROVE_409_2": PetError(409, "PET_SHARE_APPROVE_409_2", "이미 가족 구성원입니다."),
     "PET_SHARE_APPROVE_500_1": PetError(500, "PET_SHARE_APPROVE_500_1", "처리 중 오류"),
+
+    # My pets
+    "MY_PETS_401_1": PetError(401, "MY_PETS_401_1", "Authorization 헤더가 필요합니다."),
+    "MY_PETS_401_2": PetError(401, "MY_PETS_401_2", "Authorization 헤더 형식이 잘못되었거나 토큰이 유효하지 않습니다."),
+    "MY_PETS_500_1": PetError(500, "MY_PETS_500_1", "반려동물 목록을 조회하는 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."),
+    "MY_PETS_500_2": PetError(500, "MY_PETS_500_2", "사용자 정보를 생성하는 중 오류가 발생했습니다."),
 }
 
 
@@ -102,36 +109,172 @@ def _examples(path: str, mapping: Dict[str, PetError]) -> Dict:
 PET_CHECK_RESPONSES = {
     400: {"model": ErrorResponse, "description": "잘못된 형식"},
     409: {"model": ErrorResponse, "description": "이미 사용 중인 아이디"},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
 }
 
 PET_REGISTER_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    404: {"model": ErrorResponse, "description": "리소스를 찾을 수 없음"},
-    409: {"model": ErrorResponse, "description": "중복된 초대코드"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets", {
+        "PET_400_1": PET_ERRORS["PET_400_1"],
+        "PET_400_2": PET_ERRORS["PET_400_2"],
+        "PET_400_5": PET_ERRORS["PET_400_5"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets", {
+        "PET_401_1": PET_ERRORS["PET_401_1"],
+        "PET_401_2": PET_ERRORS["PET_401_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets", {
+        "PET_409_1": PET_ERRORS["PET_409_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets", {
+        "PET_500_1": PET_ERRORS["PET_500_1"],
+        "PET_500_2": PET_ERRORS["PET_500_2"],
+        "PET_500_3": PET_ERRORS["PET_500_3"],
+    })}}},
 }
 
 PET_UPDATE_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_EDIT_400_1": PET_ERRORS["PET_EDIT_400_1"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_EDIT_401_1": PET_ERRORS["PET_EDIT_401_1"],
+        "PET_EDIT_401_2": PET_ERRORS["PET_EDIT_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_EDIT_403_1": PET_ERRORS["PET_EDIT_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_EDIT_404_1": PET_ERRORS["PET_EDIT_404_1"],
+        "PET_EDIT_404_2": PET_ERRORS["PET_EDIT_404_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_EDIT_500_1": PET_ERRORS["PET_EDIT_500_1"],
+        "PET_EDIT_500_2": PET_ERRORS["PET_EDIT_500_2"],
+    })}}},
 }
 
 PET_IMAGE_RESPONSES = {
-    400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}/image", {
+        "PET_IMG_401_1": PET_ERRORS["PET_IMG_401_1"],
+        "PET_IMG_401_2": PET_ERRORS["PET_IMG_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}/image", {
+        "PET_IMG_403_1": PET_ERRORS["PET_IMG_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}/image", {
+        "PET_IMG_404_1": PET_ERRORS["PET_IMG_404_1"],
+        "PET_IMG_404_2": PET_ERRORS["PET_IMG_404_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}/image", {
+        "PET_IMG_500_2": PET_ERRORS["PET_IMG_500_2"],
+    })}}},
 }
 
 PET_DELETE_RESPONSES = {
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_DELETE_401_1": PET_ERRORS["PET_DELETE_401_1"],
+        "PET_DELETE_401_2": PET_ERRORS["PET_DELETE_401_2"],
+        "PET_DELETE_401_3": PET_ERRORS["PET_DELETE_401_3"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_DELETE_403_1": PET_ERRORS["PET_DELETE_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_DELETE_404_1": PET_ERRORS["PET_DELETE_404_1"],
+        "PET_DELETE_404_2": PET_ERRORS["PET_DELETE_404_2"],
+        "PET_DELETE_404_3": PET_ERRORS["PET_DELETE_404_3"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_id}", {
+        "PET_DELETE_500_1": PET_ERRORS["PET_DELETE_500_1"],
+    })}}},
+}
+
+# Share request/create
+PET_SHARE_CREATE_RESPONSES = {
     400: {"model": ErrorResponse, "description": "잘못된 요청"},
-    401: {"model": ErrorResponse, "description": "인증 실패"},
-    403: {"model": ErrorResponse, "description": "권한 없음"},
-    404: {"model": ErrorResponse, "description": "반려동물을 찾을 수 없음"},
-    500: {"model": ErrorResponse, "description": "서버 내부 오류"},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_search_id}/request", {
+        "PET_SHARE_401_1": PET_ERRORS["PET_SHARE_401_1"],
+        "PET_SHARE_401_2": PET_ERRORS["PET_SHARE_401_2"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_search_id}/request", {
+        "PET_SHARE_404_2": PET_ERRORS["PET_SHARE_404_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_search_id}/request", {
+        "PET_SHARE_409_1": PET_ERRORS["PET_SHARE_409_1"],
+        "PET_SHARE_409_2": PET_ERRORS["PET_SHARE_409_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/{pet_search_id}/request", {
+        "PET_SHARE_500_1": PET_ERRORS["PET_SHARE_500_1"],
+        "PET_SHARE_500_2": PET_ERRORS["PET_SHARE_500_2"],
+    })}}},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
+}
+
+# Share approve
+PET_SHARE_APPROVE_RESPONSES = {
+    400: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_400_1": PET_ERRORS["PET_SHARE_APPROVE_400_1"],
+    })}}},
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_401_1": PET_ERRORS["PET_SHARE_APPROVE_401_1"],
+        "PET_SHARE_APPROVE_401_2": PET_ERRORS["PET_SHARE_APPROVE_401_2"],
+    })}}},
+    403: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_403_1": PET_ERRORS["PET_SHARE_APPROVE_403_1"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_404_1": PET_ERRORS["PET_SHARE_APPROVE_404_1"],
+        "PET_SHARE_APPROVE_404_2": PET_ERRORS["PET_SHARE_APPROVE_404_2"],
+    })}}},
+    409: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_409_1": PET_ERRORS["PET_SHARE_APPROVE_409_1"],
+        "PET_SHARE_APPROVE_409_2": PET_ERRORS["PET_SHARE_APPROVE_409_2"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/{request_id}", {
+        "PET_SHARE_APPROVE_500_1": PET_ERRORS["PET_SHARE_APPROVE_500_1"],
+    })}}},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
+}
+
+# Share request lists
+PET_SHARE_LIST_RESPONSES = {
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/me", {
+        "PET_SHARE_401_1": PET_ERRORS["PET_SHARE_401_1"],
+        "PET_SHARE_401_2": PET_ERRORS["PET_SHARE_401_2"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/me", {
+        "PET_SHARE_APPROVE_404_1": PET_ERRORS["PET_SHARE_APPROVE_404_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/me", {
+        "PET_SHARE_APPROVE_500_1": PET_ERRORS["PET_SHARE_APPROVE_500_1"],
+    })}}},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
+}
+
+PET_RECEIVED_LIST_RESPONSES = {
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/received", {
+        "PET_SHARE_401_1": PET_ERRORS["PET_SHARE_401_1"],
+        "PET_SHARE_401_2": PET_ERRORS["PET_SHARE_401_2"],
+    })}}},
+    404: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/received", {
+        "PET_SHARE_APPROVE_404_1": PET_ERRORS["PET_SHARE_APPROVE_404_1"],
+    })}}},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/share/requests/received", {
+        "PET_SHARE_APPROVE_500_1": PET_ERRORS["PET_SHARE_APPROVE_500_1"],
+    })}}},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
+}
+
+# My pets list
+MY_PETS_RESPONSES = {
+    401: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/my", {
+        "MY_PETS_401_1": PET_ERRORS["MY_PETS_401_1"],
+        "MY_PETS_401_2": PET_ERRORS["MY_PETS_401_2"],
+    })}}},
+    404: {"model": ErrorResponse, "description": "사용자를 찾을 수 없습니다."},
+    500: {"model": ErrorResponse, "content": {"application/json": {"examples": _examples("/api/v1/pets/my", {
+        "MY_PETS_500_1": PET_ERRORS["MY_PETS_500_1"],
+        "MY_PETS_500_2": PET_ERRORS["MY_PETS_500_2"],
+    })}}},
+    422: {"model": ErrorResponse, "description": "요청 데이터 검증 실패"},
 }

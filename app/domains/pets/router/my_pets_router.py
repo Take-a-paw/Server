@@ -3,12 +3,12 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from app.db import get_db
-from app.schemas.error_schema import ErrorResponse
 from app.schemas.pets.my_pets_schema import MyPetsResponse
 from app.schemas.pets.pet_update_schema import PetUpdateRequest
 
 from app.domains.pets.service.my_pets_service import MyPetsService
 from app.domains.pets.service.pet_modify_service import PetModifyService
+from app.domains.pets.exception import MY_PETS_RESPONSES
 
 
 router = APIRouter(
@@ -26,11 +26,7 @@ router = APIRouter(
     description="현재 사용자가 속한 모든 가족 그룹의 반려동물 목록을 조회합니다.",
     status_code=200,
     response_model=MyPetsResponse,
-    responses={
-        401: {"model": ErrorResponse, "description": "인증 실패"},
-        404: {"model": ErrorResponse, "description": "사용자를 찾을 수 없음"},
-        500: {"model": ErrorResponse, "description": "서버 내부 오류"},
-    },
+    responses=MY_PETS_RESPONSES,
 )
 def list_my_pets(
     request: Request,

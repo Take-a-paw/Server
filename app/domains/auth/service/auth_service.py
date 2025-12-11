@@ -197,56 +197,8 @@ class AuthService:
                     AuthService._delete_family_and_pets(db, family_id)
                 else:
                     if is_owner:
-                        # Case 1: owner이고 멤버 2명 이상 → 소유권 이전 후 본인 탈퇴
-                        new_owner_member = next((m for m in members if m.user_id != user_id), None)
-                        if not new_owner_member:
-                            # 이론상 발생 X
-                            return auth_error("AUTH_404_2", path)
-
-                        # 신규 owner 지정
-                        new_owner_member.role = MemberRole.OWNER
-
-                        # 해당 가족의 모든 펫 owner 변경
-                        db.query(Pet).filter(Pet.family_id == family_id).update(
-                            {Pet.owner_id: new_owner_member.user_id},
-                            synchronize_session=False
-                        )
-
-                        # 신규 오너에게 알림 + FCM 푸시
-                        title = "가족 소유권이 양도되었습니다"
-                        msg = f"{user.nickname or '이전 소유자'}님이 가족 소유권을 양도했습니다."
-                        notif_repo.create_notification(
-                            family_id=family_id,
-                            target_user_id=new_owner_member.user_id,
-                            related_pet_id=None,
-                            related_user_id=user_id,
-                            notif_type=NotificationType.FAMILY_ROLE_CHANGED,
-                            title=title,
-                            message=msg,
-                        )
-                        new_owner_tokens = user_repo.get_active_fcm_tokens_for_users(
-                            [new_owner_member.user_id]
-                        )
-                        if new_owner_tokens:
-                            result = send_push_notification_to_multiple(
-                                fcm_tokens=new_owner_tokens,
-                                title=title,
-                                body=msg,
-                                data={
-                                    "type": "FAMILY_ROLE_CHANGED",
-                                    "family_id": str(family_id),
-                                    "new_owner_id": str(new_owner_member.user_id),
-                                    "previous_owner_id": str(user_id),
-                                },
-                            )
-                            if result.get("invalid_tokens"):
-                                user_repo.remove_fcm_tokens(result["invalid_tokens"])
-
-                        # 본인 family_member 삭제
-                        db.query(FamilyMember).filter(
-                            FamilyMember.family_id == family_id,
-                            FamilyMember.user_id == user_id
-                        ).delete(synchronize_session=False)
+                        # Case 1 (2명 이상, 내가 OWNER) → 가족/펫 전부 삭제 (Case 2와 동일 처리)
+                        AuthService._delete_family_and_pets(db, family_id)
                     else:
                         # Case 3: 단순 멤버 → 멤버십만 제거
                         db.query(FamilyMember).filter(
